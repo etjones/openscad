@@ -40,7 +40,7 @@ jobs:
     - name: Install gcovr
       run: uv sync --project .github/ci/openscad-coverage
     - name: Build
-      run: ./scripts/github-ci.sh experimental enable_python ${{ matrix.qt }} build
+      run: ./scripts/github-ci.sh experimental enable_python enable_occt ${{ matrix.qt }} build
     - name: Test
       # This is a bit wonky to use github-ci as it is.
       # `test` runs ctest, `test_examples` sets a persistent flag for ctest to run a different "configuration".

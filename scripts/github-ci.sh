@@ -16,6 +16,11 @@ do_experimental() {
 	EXPERIMENTAL="-DEXPERIMENTAL=ON"
 }
 
+do_enable_occt() {
+	echo "do_enable_occt()"
+	OCCT_DEFINE="-DENABLE_OCCT=ON"
+}
+
 do_enable_python() {
 	echo "do_enable_python()"
 	PYTHON_DEFINE="-DENABLE_PYTHON=ON"
@@ -38,7 +43,7 @@ do_build() {
 	mkdir "$BUILDDIR"
 	(
 		cd "$BUILDDIR"
-		cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_UNITY_BUILD=OFF -DPROFILE=ON -DUSE_BUILTIN_OPENCSG=1 ${EXPERIMENTAL} ${PYTHON_DEFINE} ${QT} .. && make $PARALLEL_MAKE
+		cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_UNITY_BUILD=OFF -DPROFILE=ON -DUSE_BUILTIN_OPENCSG=1 ${EXPERIMENTAL} ${PYTHON_DEFINE} ${OCCT_DEFINE} ${QT} .. && make $PARALLEL_MAKE
 	)
 	if [[ $? != 0 ]]; then
 		echo "Build failure"

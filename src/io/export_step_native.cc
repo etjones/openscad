@@ -7,9 +7,9 @@
 #include <TDF_LabelSequence.hxx>
 #include <TopExp_Explorer.hxx>
 #include <Quantity_Color.hxx>
-#include <unistd.h>
 #include <cmath>
 #include <map>
+#include <random>
 #include <IFSelect_ReturnStatus.hxx>
 #include <Interface_Static.hxx>
 #include <Message.hxx>
@@ -275,8 +275,9 @@ std::string step_metrics_json(const Tree& tree, const AbstractNode& root, int fa
   for (auto& [key, value] : byColor) out["built"]["colors"][key] = rounded(value);
 
   if (!geometry.isEmpty()) {
+    std::random_device rd;
     const auto path =
-      fs::temp_directory_path() / ("openscad-step-metrics-" + std::to_string(getpid()) + ".step");
+      fs::temp_directory_path() / ("openscad-step-metrics-" + std::to_string(rd()) + ".step");
     nlohmann::json readBack;
     try {
       if (writeStep(geometry, path, "metrics")) {

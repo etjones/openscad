@@ -1482,9 +1482,15 @@ if (ENABLE_OCCT)
   message(STATUS "OpenCASCADE: ${OpenCASCADE_VERSION}")
   target_compile_definitions(OpenSCADLibInternal PUBLIC ENABLE_OCCT)
   target_include_directories(OpenSCADLibInternal PUBLIC ${OpenCASCADE_INCLUDE_DIR})
+  # OCCT 7.8 folded the STEP toolkits into TKDE/TKDESTEP.
+  if(OpenCASCADE_VERSION VERSION_LESS 7.8)
+    set(OCCT_STEP_TOOLKITS TKSTEPBase TKSTEPAttr TKSTEP209 TKSTEP TKXDESTEP)
+  else()
+    set(OCCT_STEP_TOOLKITS TKDE TKDESTEP)
+  endif()
   target_link_libraries(OpenSCADLibInternal PUBLIC
     TKernel TKMath TKG2d TKG3d TKGeomBase TKBRep TKGeomAlgo TKTopAlgo TKPrim TKBO TKBool
-    TKShHealing TKOffset TKMesh TKXSBase TKDE TKDESTEP TKCDF TKLCAF TKCAF TKXCAF TKVCAF)
+    TKShHealing TKOffset TKMesh TKXSBase ${OCCT_STEP_TOOLKITS} TKCDF TKLCAF TKCAF TKXCAF TKVCAF)
   list(APPEND Sources
     src/geometry/occt/OcctBoolean.cc
     src/geometry/occt/OcctBridge.cc
