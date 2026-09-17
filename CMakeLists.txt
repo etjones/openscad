@@ -1597,6 +1597,10 @@ file(GLOB_RECURSE TEST_SOURCES
   "src/core/*_test.cc"
   "src/io/*_test.cc"
 )
+if(ENABLE_OCCT)
+  file(GLOB OCCT_TEST_SOURCES "src/geometry/occt/*_test.cc")
+  list(APPEND TEST_SOURCES ${OCCT_TEST_SOURCES})
+endif()
 file(GLOB_RECURSE GUI_TEST_SOURCES
   "src/gui/*_test.cc"
 )
