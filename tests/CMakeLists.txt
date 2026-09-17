@@ -999,9 +999,16 @@ add_cmdline_test(export-pov-all          EXPERIMENTAL OPENSCAD SUFFIX pov FILES 
 add_cmdline_test(export-param            OPENSCAD SUFFIX json FILES ${EXPORT_PARAM_TEST_FILES} ARGS --export-format param)
 if(ENABLE_OCCT)
   # Built-in STEP export: measurements of the B-rep the evaluator builds,
-  # and of the written STEP file read back, as JSON.
-  file(GLOB STEP_METRICS_TEST_FILES ${TEST_SCAD_DIR}/step/*.scad)
-  add_cmdline_test(step-metrics            OPENSCAD SUFFIX json FILES ${STEP_METRICS_TEST_FILES} ARGS --export-format step-metrics)
+  # and of the written STEP file read back, as JSON. The face and solid
+  # counts pin the analytic surface structure, and OCCT before 7.8 leaves
+  # different (equally valid) topology after a fuse, so the exact
+  # comparison runs against 7.8 and newer only.
+  if(OpenCASCADE_VERSION VERSION_GREATER_EQUAL 7.8)
+    file(GLOB STEP_METRICS_TEST_FILES ${TEST_SCAD_DIR}/step/*.scad)
+    add_cmdline_test(step-metrics            OPENSCAD SUFFIX json FILES ${STEP_METRICS_TEST_FILES} ARGS --export-format step-metrics)
+  else()
+    message(STATUS "OpenCASCADE ${OpenCASCADE_VERSION}: step-metrics tests need 7.8 or newer, skipping")
+  endif()
 endif()
 add_failing_test(export-param-hardwarnings        SUFFIX json FILES ${TEST_SCAD_DIR}/issues/issue7013.scad ARGS --retval=1 --export-format param --hardwarnings)
 add_failing_test(export-paramset-hardwarnings     SUFFIX json FILES ${TEST_SCAD_DIR}/issues/issue7013.scad ARGS --retval=1 --export-format param --hardwarnings -p ${TEST_SCAD_DIR}/issues/issue7013.json -P Defaults)

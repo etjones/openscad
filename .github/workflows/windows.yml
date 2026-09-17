@@ -58,6 +58,11 @@ jobs:
           cmake .. -G"Ninja" -DCMAKE_INSTALL_PREFIX=/usr -DCMAKE_BUILD_TYPE=Release -DEXPERIMENTAL=ON -DSNAPSHOT=ON -DENABLE_OCCT=ON -DUSE_QT6=${{ matrix.qt == 'qt6' && 'ON' || 'OFF' }}
           cmake --build . -j4
           cmake --install . --prefix=.
+      - name: OCCT unit tests (verbose diagnostic)
+        shell: msys2 {0}
+        run: |
+          cd build
+          ./OpenSCADUnitTests.exe "[occt]" -s || echo "unit tests exited with $?"
       - name: Run Test Suite
         run: |
           cd build
