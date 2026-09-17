@@ -111,6 +111,9 @@ PACKAGES=(
 
     # https://github.com/elalish/manifold/releases
     "manifold 3.5.2"
+
+    # https://github.com/Open-Cascade-SAS/OCCT/releases
+    "opencascade 7.9.3"
 )
 DEPLOY_PACKAGES=(
     # https://github.com/sparkle-project/Sparkle/releases
@@ -940,6 +943,33 @@ build_clipper2()
   mkdir build
   cd build
   cmake -DCMAKE_INSTALL_PREFIX=$DEPLOYDIR -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_DEPLOYMENT_TARGET="$MAC_OSX_VERSION_MIN" -DCMAKE_OSX_ARCHITECTURES="$ARCHS_COMBINED" -DCLIPPER2_UTILS=OFF -DCLIPPER2_EXAMPLES=OFF -DCLIPPER2_TESTS=OFF -DBUILD_SHARED_LIBS=ON ../CPP
+  make -j$NUMCPU
+  make install
+}
+
+build_opencascade()
+{
+  version=$1
+  tag=V${version//./_}
+  cd $BASEDIR/src
+  rm -rf "OCCT-${version//./_}"
+  if [ ! -f "opencascade-$version.tar.gz" ]; then
+    curl -L "https://github.com/Open-Cascade-SAS/OCCT/archive/refs/tags/$tag.tar.gz" -o "opencascade-$version.tar.gz"
+  fi
+  tar xzf "opencascade-$version.tar.gz"
+  cd "OCCT-${version//./_}"
+
+  # Only the modelling and STEP toolkits the STEP exporter links: no
+  # Draw, no visualization, and none of their optional dependencies.
+  mkdir build
+  cd build
+  cmake -DCMAKE_INSTALL_PREFIX=$DEPLOYDIR -DINSTALL_DIR=$DEPLOYDIR -DINSTALL_DIR_LAYOUT=Unix \
+    -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_DEPLOYMENT_TARGET="$MAC_OSX_VERSION_MIN" \
+    -DCMAKE_OSX_ARCHITECTURES="$ARCHS_COMBINED" \
+    -DBUILD_MODULE_Draw=OFF -DBUILD_MODULE_Visualization=OFF -DBUILD_MODULE_ApplicationFramework=ON \
+    -DBUILD_MODULE_DataExchange=ON -DBUILD_MODULE_DETools=OFF -DBUILD_DOC_Overview=OFF \
+    -DUSE_TK=OFF -DUSE_FREETYPE=OFF -DUSE_FREEIMAGE=OFF -DUSE_OPENGL=OFF -DUSE_GLES2=OFF \
+    -DUSE_RAPIDJSON=OFF -DUSE_DRACO=OFF -DUSE_TBB=OFF -DUSE_VTK=OFF -DUSE_FFMPEG=OFF ..
   make -j$NUMCPU
   make install
 }
