@@ -45,9 +45,6 @@
 #include "core/ImportNode.h"
 #include "core/LinearExtrudeNode.h"
 #include "core/ModuleInstantiation.h"
-#include "core/OffsetNode.h"
-#include "core/ProjectionNode.h"
-#include "core/RoofNode.h"
 #include "core/RotateExtrudeNode.h"
 #include "core/SurfaceNode.h"
 #include "core/TextNode.h"
@@ -260,9 +257,9 @@ OcctGeometry OcctBuilder::buildNode(const AbstractNode& node, const Color4f& inh
       return hullOrMinkowski(*n, inherited);
     }
   }
-  if (dynamic_cast<const CgalAdvNode *>(&node) || dynamic_cast<const ProjectionNode *>(&node) ||
-      dynamic_cast<const OffsetNode *>(&node) || dynamic_cast<const RoofNode *>(&node) ||
-      dynamic_cast<const LeafNode *>(&node)) {
+  // Every remaining leaf (import, surface) and polygon-producing node
+  // (projection, offset, roof) is rendered by OpenSCAD's own evaluator.
+  if (dynamic_cast<const CgalAdvNode *>(&node) || dynamic_cast<const AbstractPolyNode *>(&node)) {
     return meshFallback(node, inherited, node.name() + "() has no B-rep equivalent");
   }
   // Groups, lists, render(), the root, and anything else: implicit union.
