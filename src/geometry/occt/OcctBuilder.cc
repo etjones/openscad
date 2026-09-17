@@ -31,6 +31,7 @@
 #include <gp_GTrsf.hxx>
 #include <gp_Trsf.hxx>
 #include <algorithm>
+#include <cstdlib>
 #include <cmath>
 #include <memory>
 #include <optional>
@@ -342,7 +343,11 @@ OcctGeometry OcctBuilder::partitionedUnion(std::vector<OcctGeometry> children, u
 
   OcctGeometry result;
   result.dim = dim;
-  if (std::fabs(fusedExtent - naive) <= 1e-9 * std::max(naive, 1.0)) {
+  // Mass properties of curved faces carry integration noise around 1e-8
+  // relative; a stricter tolerance sent a set of merely touching bodies
+  // into the partition below, where a cut against a coincident surface
+  // can come back empty.
+  if (std::fabs(fusedExtent - naive) <= 1e-6 * std::max(naive, 1.0)) {
     // Disjoint, or merely touching: nothing to partition.
     result.bodies = std::move(bodies);
     return result;
@@ -372,25 +377,96 @@ OcctGeometry OcctBuilder::partitionedUnion(std::vector<OcctGeometry> children, u
   }
   for (auto& run : runs) run.fused = OcctBoolean::fuse(run.shapes, dim);
 
-  std::vector<std::pair<size_t, OcctBody>> kept;
-  std::vector<TopoDS_Shape> higher;
-  for (auto it = runs.rbegin(); it != runs.rend(); ++it) {
-    TopoDS_Shape piece = higher.empty() ? it->fused : OcctBoolean::cut({it->fused}, higher, dim);
-    if (!piece.IsNull() && OcctBoolean::extent(piece, dim) > EXTENT_EPS) {
-      kept.emplace_back(it->first, OcctBody{piece, it->color});
+  // Each run's surviving piece, by run index; a run whose cut fails is
+  // merged with the runs it collided with into one uncolored body, so
+  // the color loss stays local to that collision.
+  struct Kept {
+    size_t first;
+    OcctBody body;
+    std::vector<size_t> runs;  // runs this body accounts for
+  };
+  std::vector<Kept> kept;
+  std::vector<size_t> higher;
+  for (size_t r = runs.size(); r-- > 0;) {
+    const auto& run = runs[r];
+    // Only bodies that actually share material get cut away. A body that
+    // merely touches a higher one (a part sitting in the cavity cut for
+    // it, a difference next to the shape it was cut with) keeps its
+    // color untouched, and OCCT is spared a cut along a coincident
+    // surface, which it can answer with nothing.
+    const double own = OcctBoolean::extent(run.fused, dim);
+    std::vector<size_t> claimants;
+    std::vector<TopoDS_Shape> tools;
+    for (const size_t h : higher) {
+      auto shared = OcctBoolean::common({run.fused}, {runs[h].fused}, dim);
+      if (!shared.IsNull() && OcctBoolean::extent(shared, dim) > 1e-6 * std::max(own, 1.0)) {
+        claimants.push_back(h);
+        tools.push_back(runs[h].fused);
+      }
     }
-    higher.push_back(it->fused);
+    higher.push_back(r);
+    if (claimants.empty()) {
+      kept.push_back({run.first, {run.fused, run.color}, {r}});
+      continue;
+    }
+    // What the cut must leave: the run minus everything it shares.
+    double expected = own;
+    if (auto shared = OcctBoolean::common({run.fused}, tools, dim); !shared.IsNull()) {
+      expected = own - OcctBoolean::extent(shared, dim);
+    }
+    auto piece = OcctBoolean::cut({run.fused}, tools, dim);
+    const double got = piece.IsNull() ? 0.0 : OcctBoolean::extent(piece, dim);
+    if (std::fabs(got - expected) <= 1e-5 * std::max(own, 1.0)) {
+      if (got > EXTENT_EPS) kept.push_back({run.first, {piece, run.color}, {r}});
+      continue;
+    }
+    // The cut is not the answer. Merge this run with the runs it collided
+    // with into one uncolored body; every other body keeps its color.
+    std::vector<TopoDS_Shape> group{run.fused};
+    std::vector<size_t> members{r};
+    size_t firstIndex = run.first;
+    for (auto it = kept.begin(); it != kept.end();) {
+      bool collides = false;
+      for (const size_t m : it->runs) {
+        if (std::find(claimants.begin(), claimants.end(), m) != claimants.end()) collides = true;
+      }
+      if (collides) {
+        for (const size_t m : it->runs) {
+          group.push_back(runs[m].fused);
+          members.push_back(m);
+        }
+        firstIndex = std::min(firstIndex, it->first);
+        it = kept.erase(it);
+      } else {
+        ++it;
+      }
+    }
+    OcctBridge::warn("STEP export: a boolean between colored bodies did not come back right; " +
+                     std::to_string(members.size()) +
+                     " bodies are merged and exported without color, the rest keep theirs");
+    kept.push_back({firstIndex, {OcctBoolean::fuse(group, dim), Color4f()}, members});
   }
   std::sort(kept.begin(), kept.end(), [](const auto& a, const auto& b) { return a.first < b.first; });
   double total = 0;
-  for (const auto& [index, body] : kept) total += OcctBoolean::extent(body.shape, dim);
+  for (const auto& k : kept) total += OcctBoolean::extent(k.body.shape, dim);
+  if (std::getenv("OPENSCAD_OCCT_DEBUG")) {
+    std::string msg = "partition: fused=" + std::to_string(fusedExtent) +
+                      " naive=" + std::to_string(naive) + " total=" + std::to_string(total) + " pieces:";
+    for (const auto& k : kept) {
+      msg += " " + std::to_string(OcctBoolean::extent(k.body.shape, dim)) + "(" +
+             std::to_string(OcctBoolean::piecesOf(k.body.shape, dim).size()) + ")";
+    }
+    msg += " runs:";
+    for (const auto& run : runs) msg += " " + std::to_string(OcctBoolean::extent(run.fused, dim));
+    OcctBridge::warn(msg);
+  }
   if (std::fabs(total - fusedExtent) > 1e-6 * std::max(fusedExtent, 1.0)) {
     OcctBridge::warn(
       "STEP export: partitioning a union by color lost material; the union is exported without "
       "its colors instead");
     return single(fused, dim, Color4f());
   }
-  for (auto& [index, body] : kept) result.bodies.push_back(std::move(body));
+  for (auto& k : kept) result.bodies.push_back(std::move(k.body));
   return result;
 }
 
