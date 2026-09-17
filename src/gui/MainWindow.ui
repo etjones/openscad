@@ -236,6 +236,7 @@
      <addaction name="fileActionExportDXF"/>
      <addaction name="fileActionExportSVG"/>
      <addaction name="fileActionExportCSG"/>
+     <addaction name="fileActionExportSTEP"/>
      <addaction name="fileActionExportPDF"/>
      <addaction name="separator"/>
      <addaction name="fileActionExportImage"/>
@@ -1447,6 +1448,11 @@
    </property>
    <property name="text">
     <string>Export as &amp;CSG...</string>
+   </property>
+  </action>
+  <action name="fileActionExportSTEP">
+   <property name="text">
+    <string>Export as STEP...</string>
    </property>
   </action>
   <action name="helpActionLibraryInfo">

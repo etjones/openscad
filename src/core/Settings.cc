@@ -427,6 +427,9 @@ SettingsEntryString SettingsExportPdf::exportPdfStrokeColor(SECTION_EXPORT_PDF, 
 SettingsEntryDouble SettingsExportPdf::exportPdfStrokeWidth(SECTION_EXPORT_PDF, "stroke-width", 0, 0.01,
                                                             999, 0.35);
 
+SettingsEntryString SettingsExportStep::exportStepCommand(SECTION_EXPORT_STEP, "command",
+                                                          "uvx scad2step");
+
 SettingsEntryBool SettingsExport3mf::export3mfAlwaysShowDialog(SECTION_EXPORT_3MF, "always-show-dialog",
                                                                true);
 SettingsEntryEnum<Export3mfColorMode> SettingsExport3mf::export3mfColorMode(

@@ -1098,6 +1098,7 @@ set(CORE_SOURCES
   src/io/export_off.cc
   src/io/export_param.cc
   src/io/export_pdf.cc
+  src/io/export_step.cc
   src/io/export_stl.cc
   src/io/export_svg.cc
   src/io/export_pov.cc

@@ -442,6 +442,8 @@ void Preferences::init()
     ->setText(QString::fromStdString(Settings::Settings::localAppExecutable.value()));
   BlockSignals<QLineEdit *>(this->lineEditLocalAppTempDir)
     ->setText(QString::fromStdString(Settings::Settings::localAppTempDir.value()));
+  BlockSignals<QLineEdit *>(this->lineEditStepExportCommand)
+    ->setText(QString::fromStdString(Settings::SettingsExportStep::exportStepCommand.value()));
   this->comboBoxOctoPrintSlicingEngine->clear();
   this->comboBoxOctoPrintSlicingEngine->addItem(_("<Default>"), QVariant{""});
   if (!slicer.isEmpty()) {
@@ -1184,6 +1186,13 @@ void Preferences::on_comboBoxOctoPrintFileFormat_activated(int val)
 void Preferences::on_comboBoxLocalAppFileFormat_activated(int val)
 {
   applyComboBox(this->comboBoxLocalAppFileFormat, val, Settings::Settings::localAppFileFormat);
+  writeSettings();
+}
+
+void Preferences::on_lineEditStepExportCommand_editingFinished()
+{
+  Settings::SettingsExportStep::exportStepCommand.setValue(
+    this->lineEditStepExportCommand->text().toStdString());
   writeSettings();
 }
 

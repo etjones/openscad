@@ -146,6 +146,7 @@
 #include "gui/input/InputDriverManager.h"
 #include "io/dxfdim.h"
 #include "io/export.h"
+#include "io/export_step.h"
 #include "io/fileutils.h"
 #include "openscad.h"
 #include "platform/PlatformUtils.h"
@@ -2637,6 +2638,36 @@ void MainWindow::actionExportFileFormat(int fmt)
     }
 
   } break;
+  case FileFormat::STEP: {
+    // Like CSG, this walks the evaluated node tree rather than the rendered
+    // mesh: the analytic primitives are what the external converter needs.
+    if (GuiLocker::isLocked()) return;
+    const GuiLocker lock;
+    auto guard = scopedSetCurrentOutput();
+
+    if (!this->rootNode) {
+      LOG(message_group::Error, "Nothing to export. Please try compiling first.");
+      return;
+    }
+    const QString suffix = "step";
+    auto step_filename = QFileDialog::getSaveFileName(this, _("Export STEP File"), exportPath(suffix),
+                                                      _("STEP Files (*.step)"));
+    if (step_filename.isEmpty()) {
+      return;
+    }
+
+    auto guard2 = scopedSetCurrentOutput();
+    const auto outputPath = std::filesystem::u8path(step_filename.toStdString());
+    const auto sourcePath = std::filesystem::u8path(activeEditor->filepath.toStdString());
+    const auto workDir =
+      sourcePath.has_parent_path() ? sourcePath.parent_path() : std::filesystem::current_path();
+    const auto csgText = this->tree.getString(*this->rootNode, "\t");
+    if (export_step_external(csgText, outputPath, workDir,
+                             Settings::SettingsExportStep::exportStepCommand.value())) {
+      fileExportedMessage("STEP", step_filename);
+      this->exportPaths[suffix] = step_filename;
+    }
+  } break;
   case FileFormat::PNG: {
     // Grab first to make sure dialog box isn't part of the grabbed image
     qglview->grabFrame();
@@ -3907,6 +3938,7 @@ void MainWindow::setupMenusAndActions()
   exportMap[FileFormat::SVG] = this->fileActionExportSVG;
   exportMap[FileFormat::PDF] = this->fileActionExportPDF;
   exportMap[FileFormat::CSG] = this->fileActionExportCSG;
+  exportMap[FileFormat::STEP] = this->fileActionExportSTEP;
   exportMap[FileFormat::PNG] = this->fileActionExportImage;
 
   for (auto& [format, action] : exportMap) {

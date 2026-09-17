@@ -133,6 +133,7 @@ public slots:
   void on_pushButtonOctoPrintApiKey_clicked();
   void on_pushButtonOctoPrintRequestApiKey_clicked();
   void on_lineEditLocalAppExecutable_editingFinished();
+  void on_lineEditStepExportCommand_editingFinished();
   void on_toolButtonLocalAppSelectExecutable_clicked();
   void on_lineEditLocalAppTempDir_editingFinished();
   void on_toolButtonLocalAppSelectTempDir_clicked();
