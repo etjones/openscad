@@ -23,6 +23,7 @@ class ColorNode;
 class CsgOpNode;
 class LinearExtrudeNode;
 class RotateExtrudeNode;
+class CgalAdvNode;
 
 // Evaluates an OpenSCAD node tree into OCCT B-rep geometry.
 //
@@ -68,6 +69,7 @@ private:
   OcctGeometry transform(const TransformNode& node, const Color4f& inherited);
   OcctGeometry linearExtrude(const LinearExtrudeNode& node, const Color4f& inherited);
   OcctGeometry rotateExtrude(const RotateExtrudeNode& node, const Color4f& inherited);
+  OcctGeometry hullOrMinkowski(const CgalAdvNode& node, const Color4f& inherited);
 
   // Render the subtree with OpenSCAD's own evaluator and sew the mesh.
   OcctGeometry meshFallback(const AbstractNode& node, const Color4f& color, const std::string& why);

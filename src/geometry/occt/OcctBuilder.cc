@@ -62,6 +62,7 @@
 #include "geometry/occt/OcctMesh.h"
 #include "utils/degree_trig.h"
 #include "geometry/occt/OcctBridge.h"
+#include "geometry/occt/OcctHull.h"
 
 namespace {
 
@@ -254,6 +255,11 @@ OcctGeometry OcctBuilder::buildNode(const AbstractNode& node, const Color4f& inh
     return linearExtrude(*n, inherited);
   if (const auto *n = dynamic_cast<const RotateExtrudeNode *>(&node))
     return rotateExtrude(*n, inherited);
+  if (const auto *n = dynamic_cast<const CgalAdvNode *>(&node)) {
+    if (n->type == CgalAdvType::HULL || n->type == CgalAdvType::MINKOWSKI) {
+      return hullOrMinkowski(*n, inherited);
+    }
+  }
   if (dynamic_cast<const CgalAdvNode *>(&node) || dynamic_cast<const ProjectionNode *>(&node) ||
       dynamic_cast<const OffsetNode *>(&node) || dynamic_cast<const RoofNode *>(&node) ||
       dynamic_cast<const LeafNode *>(&node)) {
@@ -799,6 +805,44 @@ OcctGeometry OcctBuilder::rotateExtrude(const RotateExtrudeNode& node, const Col
     result.bodies.push_back({orientedOutward(shape), body.color});
   }
   return result;
+}
+
+// --- hull and minkowski ----------------------------------------------------
+
+OcctGeometry OcctBuilder::hullOrMinkowski(const CgalAdvNode& node, const Color4f& inherited)
+{
+  const bool isHull = node.type == CgalAdvType::HULL;
+  auto children = buildChildren(node, inherited);
+  unsigned int dim = 0;
+  bool mixed = false;
+  auto kept = sameDimension(children, dim, mixed);
+  if (mixed) warn(node, "Mixing 2D and 3D objects is not supported");
+  // hull() and minkowski() of nothing are nothing, and asking OpenSCAD to
+  // mesh an empty subtree is an error rather than a fallback.
+  if (kept.empty()) return {};
+
+  std::vector<TopoDS_Shape> shapes;
+  Color4f color = inherited;
+  for (const auto& child : kept) {
+    for (const auto& body : child.bodies) {
+      shapes.push_back(body.shape);
+      if (!color.isValid() && body.isColored()) color = body.color;
+    }
+  }
+  std::string rung;
+  TopoDS_Shape result;
+  if (isHull) {
+    result = OcctHull::hull(OcctHull::components(shapes, dim), dim, rung);
+  } else {
+    result = OcctHull::minkowski(shapes, dim, rung);
+  }
+  if (!result.IsNull()) {
+    if (dim == 3) result = orientedOutward(result);
+    return single(result, dim, color);
+  }
+  return meshFallback(node, inherited,
+                      isHull ? "children fit none of the closed-form hull cases"
+                             : "no operand is a sphere or circle at the origin");
 }
 
 // --- mesh fallback ---------------------------------------------------------

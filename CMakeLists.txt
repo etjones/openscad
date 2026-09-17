@@ -1489,6 +1489,7 @@ if (ENABLE_OCCT)
     src/geometry/occt/OcctBoolean.cc
     src/geometry/occt/OcctBridge.cc
     src/geometry/occt/OcctBuilder.cc
+    src/geometry/occt/OcctHull.cc
     src/geometry/occt/OcctMesh.cc
     src/io/export_step_native.cc)
 endif()
