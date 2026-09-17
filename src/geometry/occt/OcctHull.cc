@@ -47,6 +47,7 @@
 
 #include "geometry/occt/OcctBoolean.h"
 #include "geometry/occt/OcctMesh.h"
+#include "geometry/occt/OcctRevolvedHull.h"
 
 #ifdef ENABLE_MANIFOLD
 #include <manifold/manifold.h>
@@ -747,6 +748,10 @@ TopoDS_Shape hull(const std::vector<TopoDS_Shape>& comps, unsigned int dim, std:
     if (dim == 3) {
       if (auto r = hullOfSpheres(comps, rung); !r.IsNull()) return r;
       if (auto r = hullOfCylinders(comps, rung); !r.IsNull()) return r;
+      if (auto r = OcctRevolvedHull::hull(comps); !r.IsNull()) {
+        rung = "hull of translated revolution solids";
+        return r;
+      }
       if (auto r = hullOfPolyhedra(comps, rung); !r.IsNull()) return r;
     } else if (dim == 2) {
       if (auto r = hullOfTwoDiscs(comps, rung); !r.IsNull()) return r;

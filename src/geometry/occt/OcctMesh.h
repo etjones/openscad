@@ -1,6 +1,7 @@
 #pragma once
 
 #include <TopoDS_Shape.hxx>
+#include <string>
 #include <vector>
 
 #include "geometry/linalg.h"
@@ -25,7 +26,7 @@ TopoDS_Shape faceFromRing(const std::vector<Vector3d>& ring);
 // becomes a solid oriented outward, shells inside another become its
 // cavities, and coplanar facets are merged. Returns a compound of solids,
 // or a null shape if the mesh does not close.
-TopoDS_Shape solidsFromMesh(const OcctBridge::MeshData& mesh);
+TopoDS_Shape solidsFromMesh(const OcctBridge::MeshData& mesh, std::string& why);
 
 // Solids from explicit points and faces (the polyhedron() primitive).
 // Faces follow OpenSCAD's convention: vertices ordered clockwise seen from

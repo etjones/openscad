@@ -763,11 +763,14 @@ OcctGeometry OcctBuilder::rotateExtrude(const RotateExtrudeNode& node, const Col
   if (profile.isEmpty()) return {};
   if (node.angle == 0) return {};
 
+  // A tight box: the default one is padded by the shape's tolerance, which
+  // reads as "crosses the axis" for a profile that merely touches it.
   Bnd_Box box;
-  for (const auto& body : profile.bodies) BRepBndLib::Add(body.shape, box);
+  for (const auto& body : profile.bodies) BRepBndLib::AddOptimal(body.shape, box, false, false);
   double xmin, ymin, zmin, xmax, ymax, zmax;
   box.Get(xmin, ymin, zmin, xmax, ymax, zmax);
-  if (xmax > 1e-9 && xmin < -1e-9) {
+  const double axisTol = 1e-6 * std::max({std::fabs(xmin), std::fabs(xmax), 1.0});
+  if (xmax > axisTol && xmin < -axisTol) {
     OcctBridge::error(node, tree_,
                       "Children of rotate_extrude() may not lie across the Y axis (Range of X coords "
                       "for all children [" +
@@ -856,8 +859,9 @@ OcctGeometry OcctBuilder::meshFallback(const AbstractNode& node, const Color4f& 
 
   OcctGeometry result;
   result.dim = rendered.dim;
+  std::string meshWhy;
   for (const auto& mesh : rendered.meshes) {
-    auto shape = OcctMesh::solidsFromMesh(mesh);
+    auto shape = OcctMesh::solidsFromMesh(mesh, meshWhy);
     if (!shape.IsNull()) result.bodies.push_back({shape, color});
   }
   for (const auto& polygon : rendered.polygons) {
@@ -873,10 +877,8 @@ OcctGeometry OcctBuilder::meshFallback(const AbstractNode& node, const Color4f& 
     if (!shape.IsNull()) result.bodies.push_back({shape, color});
   }
   if (result.isEmpty()) {
-    warn(node, node.name() +
-                 "() rendered to a mesh that could not be made into a solid; it "
-                 "contributes nothing (" +
-                 why + ")");
+    warn(node, node.name() + "() rendered to a mesh that could not be made into a solid: " + meshWhy +
+                 "; it contributes nothing (" + why + ")");
     return {};
   }
   const std::string note = node.name() + "(): " + why +

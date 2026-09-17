@@ -1,5 +1,7 @@
 #include "geometry/occt/OcctBridge.h"
 
+#include <cstdlib>
+#include <fstream>
 #include <memory>
 #include <string>
 #include <vector>
@@ -10,6 +12,7 @@
 #include "geometry/Geometry.h"
 #include "geometry/GeometryEvaluator.h"
 #include "geometry/PolySet.h"
+#include "geometry/PolySetUtils.h"
 #include "geometry/Polygon2d.h"
 #include "utils/printutils.h"
 
@@ -29,14 +32,29 @@ void collect(const std::shared_ptr<const Geometry>& geometry, Rendered& out)
     for (const auto& item : list->flatten()) collect(item.second, out);
     return;
   }
-  if (const auto ps = std::dynamic_pointer_cast<const PolySet>(geometry)) {
+  if (auto ps = std::dynamic_pointer_cast<const PolySet>(geometry)) {
     if (ps->getDimension() != 3) return;
+    // Triangles sew reliably; a polygon merged from coplanar triangles can
+    // carry a vertex in the middle of a neighbor's edge, which leaves free
+    // edges after sewing. Coplanar triangles are merged back afterwards.
+    if (!ps->isTriangular()) ps = PolySetUtils::tessellate_faces(*ps);
     MeshData mesh;
     mesh.vertices = ps->vertices;
     for (const auto& polygon : ps->indices) {
       std::vector<size_t> face;
       for (const auto index : polygon) face.push_back(static_cast<size_t>(index));
       mesh.faces.push_back(std::move(face));
+    }
+    if (const char *dump = std::getenv("OPENSCAD_OCCT_DUMP_MESH")) {
+      std::ofstream off(dump);
+      off << "OFF\n" << mesh.vertices.size() << " " << mesh.faces.size() << " 0\n";
+      off.precision(17);
+      for (const auto& v : mesh.vertices) off << v[0] << " " << v[1] << " " << v[2] << "\n";
+      for (const auto& f : mesh.faces) {
+        off << f.size();
+        for (const auto i : f) off << " " << i;
+        off << "\n";
+      }
     }
     out.dim = 3;
     out.meshes.push_back(std::move(mesh));

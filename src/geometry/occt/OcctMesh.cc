@@ -23,6 +23,7 @@
 #include <TopoDS_Vertex.hxx>
 #include <TopoDS_Wire.hxx>
 #include <algorithm>
+#include <string>
 #include <cmath>
 #include <memory>
 #include <vector>
@@ -193,17 +194,28 @@ int countFreeEdges(const TopoDS_Shape& shape)
 }
 
 // Sew faces into shells, then solids with cavities. Null if nothing closes.
-TopoDS_Shape solidsFromFaceList(const std::vector<TopoDS_Shape>& faces, double tolerance, int& freeEdges)
+TopoDS_Shape solidsFromFaceList(const std::vector<TopoDS_Shape>& faces, double tolerance, int& freeEdges,
+                                std::string& why)
 {
   freeEdges = 0;
-  if (faces.empty()) return {};
+  if (faces.empty()) {
+    why = "no faces";
+    return {};
+  }
   BRepBuilderAPI_Sewing sewing(tolerance);
   for (const auto& f : faces) sewing.Add(f);
   sewing.Perform();
   const auto sewn = sewing.SewedShape();
-  if (sewn.IsNull()) return {};
+  if (sewn.IsNull()) {
+    why = "sewing produced nothing";
+    return {};
+  }
   freeEdges = countFreeEdges(sewn);
-  if (freeEdges > 0) return {};
+  if (freeEdges > 0) {
+    why = std::to_string(freeEdges) + " free edge(s) after sewing " + std::to_string(faces.size()) +
+          " face(s)";
+    return {};
+  }
 
   struct Candidate {
     TopoDS_Shell shell;
@@ -214,7 +226,10 @@ TopoDS_Shape solidsFromFaceList(const std::vector<TopoDS_Shape>& faces, double t
   for (TopExp_Explorer it(sewn, TopAbs_SHELL); it.More(); it.Next()) {
     auto shell = TopoDS::Shell(it.Current());
     BRepBuilderAPI_MakeSolid maker(shell);
-    if (!maker.IsDone()) continue;
+    if (!maker.IsDone()) {
+      why = "a shell could not be made into a solid";
+      continue;
+    }
     auto solid = maker.Solid();
     if (isInsideOut(solid)) {
       solid = TopoDS::Solid(solid.Reversed());
@@ -222,7 +237,10 @@ TopoDS_Shape solidsFromFaceList(const std::vector<TopoDS_Shape>& faces, double t
     }
     candidates.push_back({shell, solid, std::fabs(volumeOf(solid))});
   }
-  if (candidates.empty()) return {};
+  if (candidates.empty()) {
+    if (why.empty()) why = "no shell in the sewn result";
+    return {};
+  }
   std::sort(candidates.begin(), candidates.end(),
             [](const Candidate& a, const Candidate& b) { return a.volume > b.volume; });
 
@@ -262,9 +280,77 @@ TopoDS_Shape solidsFromFaceList(const std::vector<TopoDS_Shape>& faces, double t
 
 }  // namespace
 
-TopoDS_Shape solidsFromMesh(const OcctBridge::MeshData& mesh)
+namespace {
+
+// Remove zero-area triangles (three collinear vertices) by dropping the
+// triangle and inserting its middle vertex into the neighbor that shares
+// the long edge, so every edge still has exactly two faces. Manifold's
+// hull emits such triangles, and a dropped one leaves a T-junction that
+// sewing does not always close.
+OcctBridge::MeshData repairCollinear(const OcctBridge::MeshData& input)
 {
+  OcctBridge::MeshData mesh = input;
+  const auto& V = mesh.vertices;
+  auto middleOf = [&](const std::vector<size_t>& tri, size_t& p, size_t& m, size_t& q) {
+    // The middle vertex projects between the other two along their line.
+    for (int k = 0; k < 3; ++k) {
+      const size_t a = tri[k], b = tri[(k + 1) % 3], c = tri[(k + 2) % 3];
+      const Vector3d ac = V[c] - V[a];
+      const double len2 = ac.squaredNorm();
+      if (len2 < 1e-24) continue;
+      const double t = (V[b] - V[a]).dot(ac) / len2;
+      if (t > 0 && t < 1) {
+        p = a;
+        m = b;
+        q = c;
+        return true;
+      }
+    }
+    return false;
+  };
+  for (int pass = 0; pass < 8; ++pass) {
+    bool changed = false;
+    for (size_t i = 0; i < mesh.faces.size(); ++i) {
+      const auto& tri = mesh.faces[i];
+      if (tri.size() != 3) continue;
+      const Vector3d e1 = V[tri[1]] - V[tri[0]], e2 = V[tri[2]] - V[tri[0]];
+      const double longest = std::max({e1.norm(), e2.norm(), (V[tri[2]] - V[tri[1]]).norm()});
+      if (longest < 1e-12) continue;
+      if (e1.cross(e2).norm() > 1e-9 * longest * longest) continue;
+      size_t p, m, q;
+      if (!middleOf(tri, p, m, q)) continue;
+      // The neighbor across edge (p, q) gets m inserted between them.
+      for (size_t j = 0; j < mesh.faces.size() && !changed; ++j) {
+        if (j == i) continue;
+        auto& ring = mesh.faces[j];
+        for (size_t k = 0; k < ring.size(); ++k) {
+          const size_t a = ring[k], b = ring[(k + 1) % ring.size()];
+          if ((a == p && b == q) || (a == q && b == p)) {
+            ring.insert(ring.begin() + static_cast<long>(k) + 1, m);
+            changed = true;
+            break;
+          }
+        }
+      }
+      if (changed) {
+        mesh.faces.erase(mesh.faces.begin() + static_cast<long>(i));
+        break;
+      }
+    }
+    if (!changed) break;
+    --pass;  // keep going while triangles are still being repaired
+    if (mesh.faces.size() < 4) break;
+  }
+  return mesh;
+}
+
+}  // namespace
+
+TopoDS_Shape solidsFromMesh(const OcctBridge::MeshData& input, std::string& why)
+{
+  const auto mesh = repairCollinear(input);
   std::vector<TopoDS_Shape> faces;
+  size_t dropped = 0;
   double scale = 1.0;
   for (const auto& v : mesh.vertices) scale = std::max(scale, v.norm());
   for (const auto& polygon : mesh.faces) {
@@ -275,9 +361,15 @@ TopoDS_Shape solidsFromMesh(const OcctBridge::MeshData& mesh)
     }
     auto face = faceFromRing(ring);
     if (!face.IsNull()) faces.push_back(face);
+    else ++dropped;
   }
   int freeEdges = 0;
-  return solidsFromFaceList(faces, 1e-6 * scale, freeEdges);
+  auto result = solidsFromFaceList(faces, 1e-6 * scale, freeEdges, why);
+  if (result.IsNull() && dropped > 0) {
+    why += " (" + std::to_string(dropped) + " of " + std::to_string(mesh.faces.size()) +
+           " polygons could not be made into faces)";
+  }
+  return result;
 }
 
 TopoDS_Shape solidsFromFaces(const std::vector<Vector3d>& points,
@@ -304,7 +396,8 @@ TopoDS_Shape solidsFromFaces(const std::vector<Vector3d>& points,
     }
     built.push_back(f);
   }
-  return solidsFromFaceList(built, 1e-7 * scale, freeEdges);
+  std::string why;
+  return solidsFromFaceList(built, 1e-7 * scale, freeEdges, why);
 }
 
 }  // namespace OcctMesh
