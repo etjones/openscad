@@ -51,4 +51,11 @@ class AbstractNode;
 bool export_step_native(const Tree& tree, const AbstractNode& root,
                         const std::filesystem::path& outputPath, int facetThreshold,
                         const std::string& title);
+
+// Measurements of what the built-in evaluator produces, as JSON, for
+// regression tests: volume (area for 2D), bounding box, centroid, face
+// and solid counts, volume per color, and the same again after writing
+// a STEP file and reading it back. Values are rounded so the output is
+// stable across platforms.
+std::string step_metrics_json(const Tree& tree, const AbstractNode& root, int facetThreshold);
 #endif

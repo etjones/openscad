@@ -97,6 +97,7 @@ Containers& containers()
     add_item(*containers, {FileFormat::PDF, "pdf", "pdf", "PDF"});
     add_item(*containers, {FileFormat::POV, "pov", "pov", "POV"});
     add_item(*containers, {FileFormat::STEP, "step", "step", "STEP"});
+    add_item(*containers, {FileFormat::STEP_METRICS, "step-metrics", "json", "STEP metrics"});
 
     // Alias
     containers->identifierToInfo["stl"] = containers->identifierToInfo["asciistl"];

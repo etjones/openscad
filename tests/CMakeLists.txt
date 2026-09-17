@@ -997,6 +997,12 @@ add_cmdline_test(export-pov-all          EXPERIMENTAL OPENSCAD SUFFIX pov FILES 
 
 # Export parameters, observe exported files and console output
 add_cmdline_test(export-param            OPENSCAD SUFFIX json FILES ${EXPORT_PARAM_TEST_FILES} ARGS --export-format param)
+if(ENABLE_OCCT)
+  # Built-in STEP export: measurements of the B-rep the evaluator builds,
+  # and of the written STEP file read back, as JSON.
+  file(GLOB STEP_METRICS_TEST_FILES ${TEST_SCAD_DIR}/step/*.scad)
+  add_cmdline_test(step-metrics            OPENSCAD SUFFIX json FILES ${STEP_METRICS_TEST_FILES} ARGS --export-format step-metrics)
+endif()
 add_failing_test(export-param-hardwarnings        SUFFIX json FILES ${TEST_SCAD_DIR}/issues/issue7013.scad ARGS --retval=1 --export-format param --hardwarnings)
 add_failing_test(export-paramset-hardwarnings     SUFFIX json FILES ${TEST_SCAD_DIR}/issues/issue7013.scad ARGS --retval=1 --export-format param --hardwarnings -p ${TEST_SCAD_DIR}/issues/issue7013.json -P Defaults)
 

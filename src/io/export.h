@@ -44,7 +44,8 @@ enum class FileFormat {
   PDF,
   POV,
   PARAM,
-  STEP
+  STEP,
+  STEP_METRICS
 };
 
 struct FileFormatInfo {

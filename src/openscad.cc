@@ -482,6 +482,17 @@ int do_export(const CommandLine& cmd, const RenderVariables& render_variables, F
       exported = export_step_external(csgText, fs::path(filename_str), fparent, command);
     }
     if (!exported) return 1;
+  } else if (export_format == FileFormat::STEP_METRICS) {
+#ifdef ENABLE_OCCT
+    const auto threshold = set_cmd_line_option(cmd.exportOptions, Settings::SECTION_EXPORT_STEP,
+                                               Settings::SettingsExportStep::exportStepFacetThreshold);
+    const auto metrics = step_metrics_json(tree, *root_node, threshold);
+    if (metrics.empty()) return 1;
+    with_output(cmd.is_stdout, filename_str, [&metrics](std::ostream& stream) { stream << metrics; });
+#else
+    LOG(message_group::Error, "This OpenSCAD was built without OpenCASCADE; no STEP metrics");
+    return 1;
+#endif
   } else if (export_format == FileFormat::AST) {
     fs::current_path(fparent);  // Force exported filenames to be relative to document path
     with_output(cmd.is_stdout, filename_str,
