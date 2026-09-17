@@ -238,10 +238,10 @@ void collectReadBack(const Handle(XCAFDoc_ShapeTool) & shapes, const Handle(XCAF
   // surface color, so look for that before the generic one.
   Quantity_ColorRGBA rgba;
   std::string key = "uncolored";
-  if (XCAFDoc_ColorTool::GetColor(target, XCAFDoc_ColorSurf, rgba) ||
-      XCAFDoc_ColorTool::GetColor(label, XCAFDoc_ColorSurf, rgba) ||
-      XCAFDoc_ColorTool::GetColor(target, XCAFDoc_ColorGen, rgba) ||
-      XCAFDoc_ColorTool::GetColor(label, XCAFDoc_ColorGen, rgba)) {
+  if (colors->GetColor(target, XCAFDoc_ColorSurf, rgba) ||
+      colors->GetColor(label, XCAFDoc_ColorSurf, rgba) ||
+      colors->GetColor(target, XCAFDoc_ColorGen, rgba) ||
+      colors->GetColor(label, XCAFDoc_ColorGen, rgba)) {
     const auto rgb = rgba.GetRGB();
     key = rgbLabel(rgb.Red(), rgb.Green(), rgb.Blue());
   }
