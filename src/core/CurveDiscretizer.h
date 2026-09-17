@@ -1,6 +1,7 @@
 #pragma once
 
 #include <algorithm>
+#include <cmath>
 #include <functional>
 #include <memory>
 #include <optional>
@@ -91,6 +92,16 @@ public:
 
   friend std::ostream& operator<<(std::ostream& stream, const CurveDiscretizer& f);
   bool isFnSpecifiedAndOdd() const { return static_cast<int>(fn) & 1; }
+
+  /**
+   * The effective $fn at this node, if one is set (inherited or at the
+   * call site); OpenSCAD treats values below 3 as 3.
+   */
+  std::optional<int> explicitFn() const
+  {
+    if (!(fn > 0.0) || std::isinf(fn) || std::isnan(fn)) return std::nullopt;
+    return std::max(3, static_cast<int>(std::ceil(fn)));
+  }
 
 private:
   CurveDiscretizer(double fn, double fs, double fa) : fn(fn), fs(fs), fa(fa) {}

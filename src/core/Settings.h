@@ -570,8 +570,13 @@ class SettingsExportStep
 public:
   // External converter invoked as: <command> <tree>.csg -o <output>.step
   static SettingsEntryString exportStepCommand;
+  // "builtin" (OpenCASCADE, when compiled in) or "external" (the command above).
+  static SettingsEntryEnum<std::string> exportStepEngine;
+  // A $fn below this is honored as polygonal geometry; at or above it the curve is exact.
+  static SettingsEntryInt exportStepFacetThreshold;
 
-  static constexpr std::array<const SettingsEntryBase *, 1> cmdline{&exportStepCommand};
+  static constexpr std::array<const SettingsEntryBase *, 3> cmdline{
+    &exportStepCommand, &exportStepEngine, &exportStepFacetThreshold};
 };
 
 class SettingsExport3mf

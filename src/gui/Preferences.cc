@@ -416,6 +416,9 @@ void Preferences::init()
   initIntSpinBox(this->spinBoxTabWidth, Settings::Settings::tabWidth);
 
   initComboBox(this->comboBoxOctoPrintFileFormat, Settings::Settings::octoPrintFileFormat);
+  initComboBox(this->comboBoxStepExportEngine, Settings::SettingsExportStep::exportStepEngine);
+  initIntSpinBox(this->spinBoxStepExportFacetThreshold,
+                 Settings::SettingsExportStep::exportStepFacetThreshold);
   initComboBox(this->comboBoxOctoPrintAction, Settings::Settings::octoPrintAction);
   initComboBox(this->comboBoxLocalAppFileFormat, Settings::Settings::localAppFileFormat);
   initComboBox(this->comboBoxRenderBackend3D, Settings::Settings::renderBackend3D);
@@ -1186,6 +1189,17 @@ void Preferences::on_comboBoxOctoPrintFileFormat_activated(int val)
 void Preferences::on_comboBoxLocalAppFileFormat_activated(int val)
 {
   applyComboBox(this->comboBoxLocalAppFileFormat, val, Settings::Settings::localAppFileFormat);
+  writeSettings();
+}
+
+void Preferences::on_comboBoxStepExportEngine_activated(int val)
+{
+  applyComboBox(comboBoxStepExportEngine, val, Settings::SettingsExportStep::exportStepEngine);
+}
+
+void Preferences::on_spinBoxStepExportFacetThreshold_valueChanged(int val)
+{
+  Settings::SettingsExportStep::exportStepFacetThreshold.setValue(val);
   writeSettings();
 }
 
@@ -2025,6 +2039,9 @@ void Preferences::updateGUI()
   updateComboBox(this->comboBoxModifierNumberScrollWheel, Settings::Settings::modifierNumberScrollWheel);
   updateIntSpinBox(this->spinBoxIndentationWidth, Settings::Settings::indentationWidth);
   updateIntSpinBox(this->spinBoxTabWidth, Settings::Settings::tabWidth);
+  updateIntSpinBox(this->spinBoxStepExportFacetThreshold,
+                   Settings::SettingsExportStep::exportStepFacetThreshold);
+  updateComboBox(this->comboBoxStepExportEngine, Settings::SettingsExportStep::exportStepEngine);
   updateIntSpinBox(this->spinBoxLineWrapIndentationIndent, Settings::Settings::lineWrapIndentation);
   updateIntSpinBox(this->spinBoxShowWhitespaceSize, Settings::Settings::showWhitespaceSize);
   initUpdateCheckBox(this->checkBoxAutoIndent, Settings::Settings::autoIndent);

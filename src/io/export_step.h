@@ -40,3 +40,15 @@
 // exists. Everything the command prints is forwarded to the log.
 bool export_step_external(const std::string& csgText, const std::filesystem::path& outputPath,
                           const std::filesystem::path& workDir, const std::string& command);
+
+#ifdef ENABLE_OCCT
+class Tree;
+class AbstractNode;
+
+// STEP export through the built-in OpenCASCADE evaluator: the node tree
+// is rebuilt as B-rep geometry and written as an XDE document, one
+// product per body, colored and grouped by color.
+bool export_step_native(const Tree& tree, const AbstractNode& root,
+                        const std::filesystem::path& outputPath, int facetThreshold,
+                        const std::string& title);
+#endif

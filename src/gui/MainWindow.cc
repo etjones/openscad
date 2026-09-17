@@ -2661,9 +2661,20 @@ void MainWindow::actionExportFileFormat(int fmt)
     const auto sourcePath = std::filesystem::u8path(activeEditor->filepath.toStdString());
     const auto workDir =
       sourcePath.has_parent_path() ? sourcePath.parent_path() : std::filesystem::current_path();
-    const auto csgText = this->tree.getString(*this->rootNode, "\t");
-    if (export_step_external(csgText, outputPath, workDir,
-                             Settings::SettingsExportStep::exportStepCommand.value())) {
+    bool exported = false;
+#ifdef ENABLE_OCCT
+    if (Settings::SettingsExportStep::exportStepEngine.value() == "builtin") {
+      exported = export_step_native(this->tree, *this->rootNode, outputPath,
+                                    Settings::SettingsExportStep::exportStepFacetThreshold.value(),
+                                    sourcePath.filename().string());
+    } else
+#endif
+    {
+      const auto csgText = this->tree.getString(*this->rootNode, "\t");
+      exported = export_step_external(csgText, outputPath, workDir,
+                                      Settings::SettingsExportStep::exportStepCommand.value());
+    }
+    if (exported) {
       fileExportedMessage("STEP", step_filename);
       this->exportPaths[suffix] = step_filename;
     }

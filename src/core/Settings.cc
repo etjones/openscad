@@ -429,6 +429,12 @@ SettingsEntryDouble SettingsExportPdf::exportPdfStrokeWidth(SECTION_EXPORT_PDF, 
 
 SettingsEntryString SettingsExportStep::exportStepCommand(SECTION_EXPORT_STEP, "command",
                                                           "uvx scad2step");
+SettingsEntryEnum<std::string> SettingsExportStep::exportStepEngine(
+  SECTION_EXPORT_STEP, "engine",
+  {{"builtin", "builtin", _("Built-in (OpenCASCADE)")}, {"external", "external", _("External command")}},
+  "builtin");
+SettingsEntryInt SettingsExportStep::exportStepFacetThreshold(SECTION_EXPORT_STEP, "facet-threshold", 0,
+                                                              100000, 20);
 
 SettingsEntryBool SettingsExport3mf::export3mfAlwaysShowDialog(SECTION_EXPORT_3MF, "always-show-dialog",
                                                                true);

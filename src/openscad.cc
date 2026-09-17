@@ -459,12 +459,29 @@ int do_export(const CommandLine& cmd, const RenderVariables& render_variables, F
       LOG(message_group::Error, "STEP export to stdout is not supported");
       return 1;
     }
-    const auto csgText = tree.getString(*root_node, "\t");
-    const auto command = set_cmd_line_option(cmd.exportOptions, Settings::SECTION_EXPORT_STEP,
-                                             Settings::SettingsExportStep::exportStepCommand);
-    if (!export_step_external(csgText, fs::path(filename_str), fparent, command)) {
-      return 1;
+    const auto engine = set_cmd_line_option(cmd.exportOptions, Settings::SECTION_EXPORT_STEP,
+                                            Settings::SettingsExportStep::exportStepEngine);
+    bool exported = false;
+#ifdef ENABLE_OCCT
+    if (engine == "builtin") {
+      const auto threshold = set_cmd_line_option(cmd.exportOptions, Settings::SECTION_EXPORT_STEP,
+                                                 Settings::SettingsExportStep::exportStepFacetThreshold);
+      exported = export_step_native(tree, *root_node, fs::path(filename_str), threshold,
+                                    fpath.filename().string());
+    } else
+#else
+    if (engine == "builtin") {
+      LOG(message_group::Warning,
+          "This OpenSCAD was built without OpenCASCADE; using the external STEP export command");
     }
+#endif
+    {
+      const auto csgText = tree.getString(*root_node, "\t");
+      const auto command = set_cmd_line_option(cmd.exportOptions, Settings::SECTION_EXPORT_STEP,
+                                               Settings::SettingsExportStep::exportStepCommand);
+      exported = export_step_external(csgText, fs::path(filename_str), fparent, command);
+    }
+    if (!exported) return 1;
   } else if (export_format == FileFormat::AST) {
     fs::current_path(fparent);  // Force exported filenames to be relative to document path
     with_output(cmd.is_stdout, filename_str,
