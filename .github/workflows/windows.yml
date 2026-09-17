@@ -61,18 +61,21 @@ jobs:
       - name: OCCT unit tests, one process each (diagnostic)
         shell: msys2 {0}
         run: |
+          set +e
           cd build
-          ./OpenSCADUnitTests.exe --list-tests --verbosity quiet "[occt]" | while read -r tc; do
-            ./OpenSCADUnitTests.exe "$tc" > /dev/null 2>&1; echo "exit $? : $tc"
-          done
+          ./OpenSCADUnitTests.exe --list-tests --verbosity quiet "[occt]" > cases.txt
+          while read -r tc; do
+            ./OpenSCADUnitTests.exe "$tc" < /dev/null > /dev/null 2>&1; echo "exit $? : $tc"
+          done < cases.txt
           for sec in "cut plus common is the whole" "cutting along a coincident surface leaves the body alone" "common of disjoint shapes is empty" "cut that removes everything is empty"; do
-            ./OpenSCADUnitTests.exe "OcctBoolean cut and common" -c "$sec" > /dev/null 2>&1; echo "exit $? : cut and common / $sec"
+            ./OpenSCADUnitTests.exe "OcctBoolean cut and common" -c "$sec" < /dev/null > /dev/null 2>&1; echo "exit $? : cut and common / $sec"
           done
           for sec in "two equal spheres on a line: a capsule" "two unequal spheres: caps and a tangent cone" "four corner posts: a rounded box" "two boxes: the convex hull of their vertices" "a sphere merely translated is exactly an offset hull"; do
-            ./OpenSCADUnitTests.exe "OcctHull closed forms" -c "$sec" > /dev/null 2>&1; echo "exit $? : hull closed forms / $sec"
+            ./OpenSCADUnitTests.exe "OcctHull closed forms" -c "$sec" < /dev/null > /dev/null 2>&1; echo "exit $? : hull closed forms / $sec"
           done
-          ./openscad.com -o primitives.json --export-format step-metrics ../tests/data/scad/step/primitives.scad > /dev/null 2>&1; echo "exit $? : step-metrics primitives"
-          ./openscad.com -o booleans.json --export-format step-metrics ../tests/data/scad/step/booleans.scad > /dev/null 2>&1; echo "exit $? : step-metrics booleans"
+          ./openscad.com -o primitives.json --export-format step-metrics ../tests/data/scad/step/primitives.scad < /dev/null > /dev/null 2>&1; echo "exit $? : step-metrics primitives"
+          ./openscad.com -o booleans.json --export-format step-metrics ../tests/data/scad/step/booleans.scad < /dev/null > /dev/null 2>&1; echo "exit $? : step-metrics booleans"
+          exit 0
       - name: Run Test Suite
         run: |
           cd build
