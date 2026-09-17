@@ -775,7 +775,7 @@ build_harfbuzz()
   # Build each arch separately
   for arch in ${ARCHS[*]}; do
     sed -e "s,@MAC_OSX_VERSION_MIN@,$MAC_OSX_VERSION_MIN,g" -e "s,@DEPLOYDIR@,$DEPLOYDIR,g" $OPENSCADDIR/scripts/macos-$arch.txt.in > macos-$arch.txt
-    meson setup --prefix $PWD/../../install --cross-file macos-$arch.txt build-$arch -Dfreetype=enabled -Dgraphite2=enabled -Dgobject=disabled -Dcairo=disabled -Dicu=disabled -Dcoretext=auto -Dglib=disabled -Dtests=disabled -Ddocs=disabled
+    meson setup --prefix $DEPLOYDIR --cross-file macos-$arch.txt build-$arch -Dfreetype=enabled -Dgraphite2=enabled -Dgobject=disabled -Dcairo=disabled -Dicu=disabled -Dcoretext=auto -Dglib=disabled -Dtests=disabled -Ddocs=disabled
     meson compile -C build-$arch
     DESTDIR=install/ meson install -C build-$arch
   done
@@ -865,7 +865,7 @@ build_pixman()
   # Build each arch separately
   for arch in ${ARCHS[*]}; do
     sed -e "s,@MAC_OSX_VERSION_MIN@,$MAC_OSX_VERSION_MIN,g" -e "s,@DEPLOYDIR@,$DEPLOYDIR,g" $OPENSCADDIR/scripts/macos-$arch.txt.in > macos-$arch.txt
-    meson setup --prefix $PWD/../../install --cross-file macos-$arch.txt build-$arch -Dlibpng=disabled -Dgtk=disabled -Dtests=disabled -Dneon=disabled -Ddemos=disabled
+    meson setup --prefix $DEPLOYDIR --cross-file macos-$arch.txt build-$arch -Dlibpng=disabled -Dgtk=disabled -Dtests=disabled -Dneon=disabled -Ddemos=disabled
     meson compile -C build-$arch
     DESTDIR=install/ meson install -C build-$arch
   done
