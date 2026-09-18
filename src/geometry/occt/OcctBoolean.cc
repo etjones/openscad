@@ -4,6 +4,8 @@
 #include <BRepAlgoAPI_Common.hxx>
 #include <BRepAlgoAPI_Cut.hxx>
 #include <BRepAlgoAPI_Fuse.hxx>
+#include <BRepBuilderAPI_Copy.hxx>
+#include <ShapeAnalysis_ShapeTolerance.hxx>
 #include <BRepBndLib.hxx>
 #include <BRepBuilderAPI_MakeSolid.hxx>
 #include <BRepClass3d_SolidClassifier.hxx>
@@ -36,6 +38,14 @@ constexpr double VOLUME_SLACK = 1e-4;
 
 // Relative tolerance for "unify conserved the extent".
 constexpr double UNIFY_RTOL = 1e-5;
+
+// A unify may tighten topology, not loosen it: a result whose largest
+// tolerance grew past this (absolute, or relative to the input's) is
+// rejected. Merging two sphere faces was seen to inflate one vertex to
+// half the model's size, after which every boolean downstream was fuzzy at
+// model scale and a plane cut kept both halves.
+constexpr double UNIFY_TOLERANCE_CAP = 1e-5;
+constexpr double UNIFY_TOLERANCE_GROWTH = 100.0;
 
 // Fuzzy values tried, as fractions of the operands' bounding diagonal.
 constexpr std::array<double, 4> FUZZ_FRACTIONS{1e-7, 1e-6, 1e-5, 1e-4};
@@ -225,20 +235,33 @@ TopoDS_Shape makeCompound(const std::vector<TopoDS_Shape>& shapes)
   return compound;
 }
 
+double maxTolerance(const TopoDS_Shape& shape)
+{
+  ShapeAnalysis_ShapeTolerance analysis;
+  return analysis.Tolerance(shape, 1);
+}
+
 TopoDS_Shape unify(const TopoDS_Shape& shape, unsigned int dim)
 {
   if (shape.IsNull()) return shape;
   try {
     const double before = extent(shape, dim);
-    ShapeUpgrade_UnifySameDomain unifier(shape, true, true, true);
+    const double toleranceBefore = maxTolerance(shape);
+    // UnifySameDomain updates vertex and edge tolerances on the shapes it
+    // was given, so a rejected trial would still have damaged the input:
+    // it runs on a copy.
+    const TopoDS_Shape trial = BRepBuilderAPI_Copy(shape).Shape();
+    ShapeUpgrade_UnifySameDomain unifier(trial, true, true, true);
     unifier.Build();
     const auto after = unifier.Shape();
     if (after.IsNull()) return shape;
     const double afterExtent = extent(after, dim);
-    if (std::fabs(afterExtent - before) <= UNIFY_RTOL * std::max(before, 1e-9) + 1e-9) {
-      return after;
+    if (std::fabs(afterExtent - before) > UNIFY_RTOL * std::max(before, 1e-9) + 1e-9) return shape;
+    const double toleranceAfter = maxTolerance(after);
+    if (toleranceAfter > std::max(UNIFY_TOLERANCE_CAP, UNIFY_TOLERANCE_GROWTH * toleranceBefore)) {
+      return shape;
     }
-    return shape;
+    return after;
   } catch (const Standard_Failure&) {
     return shape;
   }

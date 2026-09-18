@@ -3,6 +3,7 @@
 #include <BRepPrimAPI_MakeBox.hxx>
 #include <BRepPrimAPI_MakeCylinder.hxx>
 #include <BRepPrimAPI_MakeSphere.hxx>
+#include <ShapeAnalysis_ShapeTolerance.hxx>
 #include <ShapeUpgrade_UnifySameDomain.hxx>
 #include <TopExp_Explorer.hxx>
 #include <catch2/catch_all.hpp>
@@ -294,4 +295,16 @@ TEST_CASE("explicit segment counts come from $fn or from non-default $fa/$fs", "
   REQUIRE(fineness(0, 70, 2).explicitSegmentCount(4.9) == 6);
   REQUIRE(fineness(0, 12, 3).explicitSegmentCount(3) == 7);
   REQUIRE(fineness(0, 1, 2).explicitSegmentCount(5) == 16);
+}
+
+TEST_CASE("OcctBoolean unify never loosens tolerances, on its result or its input", "[occt]")
+{
+  // Scooping a sphere out of a box's side leaves two sphere faces that
+  // UnifySameDomain merges by inflating one vertex to half the model's
+  // size; with that vertex every later boolean is fuzzy at model scale.
+  const auto scooped = OcctBoolean::cut({box(-50, -25, -25, 100, 50, 50)}, {sphere(-60, 0, 0, 25)}, 3);
+  ShapeAnalysis_ShapeTolerance analysis;
+  REQUIRE(analysis.Tolerance(scooped, 1) < 1e-5);
+  const auto half = OcctBoolean::cut({scooped}, {box(-100, -100, -200, 200, 200, 200)}, 3);
+  REQUIRE_THAT(volume(half), WithinRel(volume(scooped) / 2, 1e-6));
 }
