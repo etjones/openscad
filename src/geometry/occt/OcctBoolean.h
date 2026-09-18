@@ -31,22 +31,47 @@ double diagonal(const std::vector<TopoDS_Shape>& shapes);
 
 TopoDS_Shape makeCompound(const std::vector<TopoDS_Shape>& shapes);
 
-// N-ary fuse, checked: the result must hold at least the largest input
-// and at most their sum, and must not come back in more pieces than it
-// was given. On failure, retried with fuzzy tolerances; if none helps the
-// operands are returned unjoined (with a warning), which is the right
-// material in the right places.
-TopoDS_Shape fuse(const std::vector<TopoDS_Shape>& operands, unsigned int dim);
+// Does `result` still hold every one of `operands`? A union contains
+// everything it was given, so a body of the input that no body of the
+// result contains means the fuse dropped it. Sampled at up to eight
+// interior points per operand, so it is a detector, not a proof: an
+// operand partly swallowed can still pass. 2D geometry always passes.
+bool keepsOperands(const std::vector<TopoDS_Shape>& operands, const TopoDS_Shape& result,
+                   unsigned int dim);
 
-// N-ary cut, checked: no result body may sit inside a tool.
+// Does `result` still hold the material of `args` that no tool covers? A
+// cut removes only what its tools cover, so an uncovered interior point
+// missing from the result means the cut took too much. Same sampling
+// caveat as above.
+bool keepsUncoveredMaterial(const std::vector<TopoDS_Shape>& args,
+                            const std::vector<TopoDS_Shape>& tools, const TopoDS_Shape& result,
+                            unsigned int dim);
+
+// N-ary fuse, checked: the result must hold at least the largest input
+// and at most their sum, must not come back in more pieces than it was
+// given, must have no open shells, and must still contain every operand
+// (sampled at several interior points each). On failure, retried with
+// fuzzy tolerances and then one operand at a time; if none helps the
+// operands are returned unjoined, `verified` (when given) is cleared and
+// a warning is logged. A caller that can render the node another way
+// should do so when `verified` comes back false.
+TopoDS_Shape fuse(const std::vector<TopoDS_Shape>& operands, unsigned int dim, bool *verified = nullptr);
+
+// N-ary cut, checked: no result body may sit inside a tool, no open shells.
 TopoDS_Shape cut(const std::vector<TopoDS_Shape>& args, const std::vector<TopoDS_Shape>& tools,
-                 unsigned int dim);
+                 unsigned int dim, bool *verified = nullptr);
 
 TopoDS_Shape common(const std::vector<TopoDS_Shape>& args, const std::vector<TopoDS_Shape>& tools,
-                    unsigned int dim);
+                    unsigned int dim, bool *verified = nullptr);
 
 // ShapeUpgrade_UnifySameDomain, adopted only when it conserves the
 // shape's extent (it can delete faces crossed by a surface's seam).
 TopoDS_Shape unify(const TopoDS_Shape& shape, unsigned int dim);
+
+// Splits faces that wrap all the way around a periodic surface, so no
+// face in the result carries a seam. Written STEP survives the trip
+// through other CAD systems that way; see the comment on the definition.
+// Adopted only when it conserves the shape's extent.
+TopoDS_Shape splitClosedFaces(const TopoDS_Shape& shape, unsigned int dim);
 
 }  // namespace OcctBoolean

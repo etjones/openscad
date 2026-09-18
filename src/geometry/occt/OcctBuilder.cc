@@ -294,7 +294,61 @@ std::vector<OcctGeometry> sameDimension(const std::vector<OcctGeometry>& childre
 
 }  // namespace
 
+TopoDS_Shape OcctBuilder::checkedFuse(const std::vector<TopoDS_Shape>& operands, unsigned int dim)
+{
+  // A union that cannot be verified hands back its operands unjoined,
+  // which is the right material in the right places -- only unmerged. It
+  // is not worth trading the whole node's exact surfaces for a mesh, so
+  // unlike a cut it does not mark the node unverified.
+  return OcctBoolean::fuse(operands, dim);
+}
+
+TopoDS_Shape OcctBuilder::checkedCut(const std::vector<TopoDS_Shape>& args,
+                                     const std::vector<TopoDS_Shape>& tools, unsigned int dim)
+{
+  bool ok = true;
+  auto shape = OcctBoolean::cut(args, tools, dim, &ok);
+  if (!ok) unverified_ = true;
+  return shape;
+}
+
+TopoDS_Shape OcctBuilder::checkedCommon(const std::vector<TopoDS_Shape>& args,
+                                        const std::vector<TopoDS_Shape>& tools, unsigned int dim)
+{
+  bool ok = true;
+  auto shape = OcctBoolean::common(args, tools, dim, &ok);
+  if (!ok) unverified_ = true;
+  return shape;
+}
+
+namespace {
+
+// Restores the builder's "unverified" flag on scope exit, so a node that
+// falls back to a mesh does not taint its ancestors.
+struct VerificationScope {
+  bool& flag;
+  bool saved;
+  explicit VerificationScope(bool& f) : flag(f), saved(f) { flag = false; }
+  ~VerificationScope() { flag = saved; }
+  [[nodiscard]] bool failed() const { return flag; }
+};
+
+const char *UNVERIFIED = "a boolean below it could not be verified in B-rep (see the warning above)";
+
+}  // namespace
+
 OcctGeometry OcctBuilder::unionOf(const AbstractNode& node, std::vector<OcctGeometry> children)
+{
+  const VerificationScope scope(unverified_);
+  auto result = unionOfChecked(node, std::move(children));
+  if (!scope.failed()) return result;
+  const Color4f color = result.isEmpty() ? Color4f() : result.bodies.front().color;
+  return meshFallback(node, color, UNVERIFIED);
+}
+
+// The union itself is not what marks a node unverified (see checkedFuse);
+// this catches a cut or intersection that failed inside a child of it.
+OcctGeometry OcctBuilder::unionOfChecked(const AbstractNode& node, std::vector<OcctGeometry> children)
 {
   unsigned int dim = 0;
   bool mixed = false;
@@ -317,7 +371,7 @@ OcctGeometry OcctBuilder::unionOf(const AbstractNode& node, std::vector<OcctGeom
   if (oneColor) {
     std::vector<TopoDS_Shape> shapes;
     for (const auto& body : bodies) shapes.push_back(body.shape);
-    return single(OcctBoolean::fuse(shapes, dim), dim, bodies[0].color);
+    return single(checkedFuse(shapes, dim), dim, bodies[0].color);
   }
   OcctGeometry flat;
   flat.dim = dim;
@@ -337,7 +391,7 @@ OcctGeometry OcctBuilder::partitionedUnion(std::vector<OcctGeometry> children, u
   }
   std::vector<TopoDS_Shape> all;
   for (const auto& body : bodies) all.push_back(body.shape);
-  const auto fused = OcctBoolean::fuse(all, dim);
+  const auto fused = checkedFuse(all, dim);
   const double fusedExtent = OcctBoolean::extent(fused, dim);
   double naive = 0;
   for (const auto& s : all) naive += OcctBoolean::extent(s, dim);
@@ -376,7 +430,7 @@ OcctGeometry OcctBuilder::partitionedUnion(std::vector<OcctGeometry> children, u
       runs.push_back({i, bodies[i].color, {bodies[i].shape}, {}});
     }
   }
-  for (auto& run : runs) run.fused = OcctBoolean::fuse(run.shapes, dim);
+  for (auto& run : runs) run.fused = checkedFuse(run.shapes, dim);
 
   // Each run's surviving piece, by run index; a run whose cut fails is
   // merged with the runs it collided with into one uncolored body, so
@@ -399,7 +453,7 @@ OcctGeometry OcctBuilder::partitionedUnion(std::vector<OcctGeometry> children, u
     std::vector<size_t> claimants;
     std::vector<TopoDS_Shape> tools;
     for (const size_t h : higher) {
-      auto shared = OcctBoolean::common({run.fused}, {runs[h].fused}, dim);
+      auto shared = checkedCommon({run.fused}, {runs[h].fused}, dim);
       if (!shared.IsNull() && OcctBoolean::extent(shared, dim) > 1e-6 * std::max(own, 1.0)) {
         claimants.push_back(h);
         tools.push_back(runs[h].fused);
@@ -412,10 +466,10 @@ OcctGeometry OcctBuilder::partitionedUnion(std::vector<OcctGeometry> children, u
     }
     // What the cut must leave: the run minus everything it shares.
     double expected = own;
-    if (auto shared = OcctBoolean::common({run.fused}, tools, dim); !shared.IsNull()) {
+    if (auto shared = checkedCommon({run.fused}, tools, dim); !shared.IsNull()) {
       expected = own - OcctBoolean::extent(shared, dim);
     }
-    auto piece = OcctBoolean::cut({run.fused}, tools, dim);
+    auto piece = checkedCut({run.fused}, tools, dim);
     const double got = piece.IsNull() ? 0.0 : OcctBoolean::extent(piece, dim);
     if (std::fabs(got - expected) <= 1e-5 * std::max(own, 1.0)) {
       if (got > EXTENT_EPS) kept.push_back({run.first, {piece, run.color}, {r}});
@@ -445,7 +499,7 @@ OcctGeometry OcctBuilder::partitionedUnion(std::vector<OcctGeometry> children, u
     OcctBridge::warn("STEP export: a boolean between colored bodies did not come back right; " +
                      std::to_string(members.size()) +
                      " bodies are merged and exported without color, the rest keep theirs");
-    kept.push_back({firstIndex, {OcctBoolean::fuse(group, dim), Color4f()}, members});
+    kept.push_back({firstIndex, {checkedFuse(group, dim), Color4f()}, members});
   }
   std::sort(kept.begin(), kept.end(), [](const auto& a, const auto& b) { return a.first < b.first; });
   double total = 0;
@@ -473,6 +527,16 @@ OcctGeometry OcctBuilder::partitionedUnion(std::vector<OcctGeometry> children, u
 
 OcctGeometry OcctBuilder::differenceOf(const AbstractNode& node, std::vector<OcctGeometry> children)
 {
+  const VerificationScope scope(unverified_);
+  auto result = differenceOfChecked(node, std::move(children));
+  if (!scope.failed()) return result;
+  const Color4f color = result.isEmpty() ? Color4f() : result.bodies.front().color;
+  return meshFallback(node, color, UNVERIFIED);
+}
+
+OcctGeometry OcctBuilder::differenceOfChecked(const AbstractNode& node,
+                                              std::vector<OcctGeometry> children)
+{
   if (children.empty()) return {};
   // The first child is the minuend even when empty: with it gone there is
   // nothing to cut from, and the first subtrahend must not be promoted.
@@ -499,11 +563,11 @@ OcctGeometry OcctBuilder::differenceOf(const AbstractNode& node, std::vector<Occ
     if (!sameColor(minuend.bodies[i].color, minuend.bodies[0].color)) oneColor = false;
   }
   if (oneColor) {
-    auto shape = OcctBoolean::cut(shapesOf(minuend), tools, dim);
+    auto shape = checkedCut(shapesOf(minuend), tools, dim);
     return single(shape, dim, minuend.bodies[0].color);
   }
   for (const auto& body : minuend.bodies) {
-    auto shape = OcctBoolean::cut({body.shape}, tools, dim);
+    auto shape = checkedCut({body.shape}, tools, dim);
     if (!shape.IsNull()) result.bodies.push_back({shape, body.color});
   }
   if (result.bodies.empty()) return {};
@@ -511,6 +575,16 @@ OcctGeometry OcctBuilder::differenceOf(const AbstractNode& node, std::vector<Occ
 }
 
 OcctGeometry OcctBuilder::intersectionOf(const AbstractNode& node, std::vector<OcctGeometry> children)
+{
+  const VerificationScope scope(unverified_);
+  auto result = intersectionOfChecked(node, std::move(children));
+  if (!scope.failed()) return result;
+  const Color4f color = result.isEmpty() ? Color4f() : result.bodies.front().color;
+  return meshFallback(node, color, UNVERIFIED);
+}
+
+OcctGeometry OcctBuilder::intersectionOfChecked(const AbstractNode& node,
+                                                std::vector<OcctGeometry> children)
 {
   if (children.empty()) return {};
   // Any empty operand empties the intersection.
@@ -531,7 +605,7 @@ OcctGeometry OcctBuilder::intersectionOf(const AbstractNode& node, std::vector<O
   for (const auto& body : children.front().bodies) {
     TopoDS_Shape current = body.shape;
     for (size_t i = 1; i < children.size() && !current.IsNull(); ++i) {
-      current = OcctBoolean::common({current}, shapesOf(children[i]), dim);
+      current = checkedCommon({current}, shapesOf(children[i]), dim);
     }
     if (!current.IsNull()) result.bodies.push_back({current, body.color});
   }
@@ -817,8 +891,10 @@ OcctGeometry OcctBuilder::linearExtrude(const LinearExtrudeNode& node, const Col
             (wire.IsSame(outer) ? outers : holes).push_back(loft.Shape());
           }
         }
-        shape = OcctBoolean::fuse(outers, 3);
-        if (!holes.empty()) shape = OcctBoolean::cut({shape}, holes, 3);
+        bool ok = true;
+        shape = OcctBoolean::fuse(outers, 3, &ok);
+        if (ok && !holes.empty()) shape = OcctBoolean::cut({shape}, holes, 3, &ok);
+        if (!ok) shape.Nullify();
         if (!shape.IsNull()) shape = translated(shape, offset[0], offset[1], offset[2]);
       }
     } catch (const Standard_Failure&) {

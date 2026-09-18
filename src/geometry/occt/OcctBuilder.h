@@ -58,6 +58,9 @@ private:
   OcctGeometry differenceOf(const AbstractNode& node, std::vector<OcctGeometry> children);
   OcctGeometry intersectionOf(const AbstractNode& node, std::vector<OcctGeometry> children);
   OcctGeometry partitionedUnion(std::vector<OcctGeometry> children, unsigned int dim);
+  OcctGeometry unionOfChecked(const AbstractNode& node, std::vector<OcctGeometry> children);
+  OcctGeometry differenceOfChecked(const AbstractNode& node, std::vector<OcctGeometry> children);
+  OcctGeometry intersectionOfChecked(const AbstractNode& node, std::vector<OcctGeometry> children);
 
   OcctGeometry cube(const CubeNode& node, const Color4f& color);
   OcctGeometry sphere(const SphereNode& node, const Color4f& color);
@@ -85,4 +88,13 @@ private:
   int facetThreshold_;
   std::unique_ptr<GeometryEvaluator> evaluator_;
   std::vector<std::string> fallbacks_;
+  // Set when a boolean below the node being built could not be verified;
+  // the node is then rendered to a mesh instead of trusting the result.
+  bool unverified_ = false;
+
+  TopoDS_Shape checkedFuse(const std::vector<TopoDS_Shape>& operands, unsigned int dim);
+  TopoDS_Shape checkedCut(const std::vector<TopoDS_Shape>& args, const std::vector<TopoDS_Shape>& tools,
+                          unsigned int dim);
+  TopoDS_Shape checkedCommon(const std::vector<TopoDS_Shape>& args,
+                             const std::vector<TopoDS_Shape>& tools, unsigned int dim);
 };

@@ -1,19 +1,19 @@
 {
  "built": {
   "bbox": [
-   20.0,
-   6.0,
-   6.0
+   4.0,
+   4.0,
+   4.9913
   ],
   "centroid": [
    0.0,
    0.0,
-   0.0
+   -12.1165
   ],
   "colors": {
-   "uncolored": 508.938
+   "uncolored": 30.7445
   },
-  "extent": 508.938,
+  "extent": 30.7445,
   "faces": 3,
   "solids": 1
  },
@@ -21,20 +21,20 @@
  "fallbacks": 0,
  "roundtrip": {
   "bbox": [
-   20.0,
-   6.0,
-   6.0
+   4.0,
+   4.0,
+   5.0
   ],
   "centroid": [
    0.0,
-   0.0,
-   0.0
+   0.0004,
+   -12.1159
   ],
   "colors": {
-   "uncolored": 508.938
+   "uncolored": 30.7668
   },
-  "extent": 508.938,
-  "faces": 4,
+  "extent": 30.7668,
+  "faces": 5,
   "solids": 1
  }
 }

@@ -5,6 +5,7 @@
 #include <BRepPrimAPI_MakeSphere.hxx>
 #include <ShapeAnalysis_ShapeTolerance.hxx>
 #include <ShapeUpgrade_UnifySameDomain.hxx>
+#include <TopAbs.hxx>
 #include <TopExp_Explorer.hxx>
 #include <catch2/catch_all.hpp>
 #include <cmath>
@@ -35,6 +36,13 @@ TopoDS_Shape sphere(double x, double y, double z, double r)
 TopoDS_Shape cylinder(double x, double y, double z, double r, double h)
 {
   return BRepPrimAPI_MakeCylinder(gp_Ax2(gp_Pnt(x, y, z), gp_Dir(0, 0, 1)), r, h).Shape();
+}
+
+int faceCount(const TopoDS_Shape& s)
+{
+  int n = 0;
+  for (TopExp_Explorer it(s, TopAbs_FACE); it.More(); it.Next()) ++n;
+  return n;
 }
 
 double volume(const TopoDS_Shape& s)
@@ -307,4 +315,52 @@ TEST_CASE("OcctBoolean unify never loosens tolerances, on its result or its inpu
   REQUIRE(analysis.Tolerance(scooped, 1) < 1e-5);
   const auto half = OcctBoolean::cut({scooped}, {box(-100, -100, -200, 200, 200, 200)}, 3);
   REQUIRE_THAT(volume(half), WithinRel(volume(scooped) / 2, 1e-6));
+}
+
+TEST_CASE("OcctBoolean::keepsOperands sees an operand a union dropped", "[occt]")
+{
+  const auto left = box(0, 0, 0, 10, 10, 10);
+  const auto middle = box(10, 2, 2, 2, 6, 6);
+  const auto right = box(12, 0, 0, 10, 10, 10);
+  const std::vector<TopoDS_Shape> operands{left, middle, right};
+
+  REQUIRE(OcctBoolean::keepsOperands(operands, OcctBoolean::fuse(operands, 3), 3));
+  // What a dropped operand looks like: the two ends joined without the
+  // bar between them. Volume and piece count alone cannot tell this from
+  // a correct answer, which is why the operands are checked directly.
+  REQUIRE_FALSE(OcctBoolean::keepsOperands(operands, OcctBoolean::makeCompound({left, right}), 3));
+  // 2D geometry is not sampled, so it always passes.
+  REQUIRE(OcctBoolean::keepsOperands(operands, OcctBoolean::makeCompound({left}), 2));
+}
+
+TEST_CASE("OcctBoolean::keepsUncoveredMaterial sees a cut that took too much", "[occt]")
+{
+  const std::vector<TopoDS_Shape> args{box(0, 0, 0, 10, 10, 10)};
+  const std::vector<TopoDS_Shape> tools{box(0, 0, 0, 10, 10, 4)};
+  const auto cut = OcctBoolean::cut(args, tools, 3);
+  REQUIRE_THAT(volume(cut), WithinRel(600.0, 1e-9));
+  REQUIRE(OcctBoolean::keepsUncoveredMaterial(args, tools, cut, 3));
+
+  // Half of what the cut should have kept: within the bounds a cut
+  // implies (it may remove everything), so only the argument's own
+  // uncovered material gives it away.
+  const auto half = OcctBoolean::cut(args, {box(0, 0, 0, 10, 10, 7)}, 3);
+  REQUIRE_FALSE(OcctBoolean::keepsUncoveredMaterial(args, tools, half, 3));
+  // Removing exactly the tool is not a violation, however little is left.
+  REQUIRE(OcctBoolean::keepsUncoveredMaterial(args, {box(0, 0, 0, 10, 10, 10)},
+                                              OcctBoolean::makeCompound({}), 3));
+}
+
+TEST_CASE("OcctBoolean::splitClosedFaces removes seams without moving the shape", "[occt]")
+{
+  const auto ball = sphere(0, 0, 0, 5);
+  const auto split = OcctBoolean::splitClosedFaces(ball, 3);
+  REQUIRE(faceCount(split) > faceCount(ball));
+  REQUIRE_THAT(volume(split), WithinRel(volume(ball), 1e-6));
+
+  // A box has no periodic face, so it is handed back untouched.
+  const auto brick = box(0, 0, 0, 10, 10, 10);
+  REQUIRE(faceCount(OcctBoolean::splitClosedFaces(brick, 3)) == faceCount(brick));
+  // 2D geometry is left alone.
+  REQUIRE(OcctBoolean::splitClosedFaces(ball, 2).IsSame(ball));
 }

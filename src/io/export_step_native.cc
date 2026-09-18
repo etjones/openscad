@@ -101,7 +101,7 @@ bool writeStep(const OcctGeometry& geometry, const fs::path& outputPath, const s
   std::vector<Piece> pieces;
   for (const auto& body : geometry.bodies) {
     for (const auto& piece : OcctBoolean::piecesOf(body.shape, geometry.dim)) {
-      pieces.push_back({piece, body.color});
+      pieces.push_back({OcctBoolean::splitClosedFaces(piece, geometry.dim), body.color});
     }
   }
   if (pieces.empty()) {
