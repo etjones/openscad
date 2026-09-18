@@ -52,6 +52,10 @@ jobs:
         with:
           version: '22.1.7'
           build-type: 'release-mingw'
+      # The STEP evaluator (ENABLE_OCCT) is not built here: the msys2
+      # opencascade 7.9.3-3 package, compiled with GCC 16, segfaults inside
+      # Extrema_ExtCC::Perform on any boolean involving a curved surface
+      # (backtrace in etjones/openscad#1). Re-enable once the package works.
       - name: Build OpenSCAD
         run: |
           mkdir build && cd build

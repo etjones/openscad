@@ -96,6 +96,8 @@ get_debian_deps()
   bison build-essential cmake curl flex gettext ghostscript git \
   gtk-doc-tools imagemagick lib3mf-dev libboost-program-options-dev \
   libboost-regex-dev libboost-system-dev libcairo2-dev libcgal-dev \
+  libocct-data-exchange-dev libocct-foundation-dev libocct-modeling-algorithms-dev \
+  libocct-modeling-data-dev libocct-ocaf-dev \
   libdouble-conversion-dev libeigen3-dev libffi-dev libfontconfig-dev \
   libfreetype-dev libgl1-mesa-dev libglew-dev libglib2.0-dev libgmp-dev \
   libharfbuzz-dev libmimalloc-dev libmpfr-dev libopencsg-dev \

@@ -2032,6 +2032,118 @@
              <number>9</number>
             </property>
             <item>
+             <widget class="QGroupBox" name="groupBoxStepExport">
+              <property name="title">
+               <string>STEP Export</string>
+              </property>
+              <layout class="QVBoxLayout" name="verticalLayoutStepExport">
+               <item>
+                <widget class="QLabel" name="labelStepExportHelp">
+                 <property name="text">
+                  <string>External converter run as &lt;command&gt; model.csg -o model.step. The default needs uv (https://docs.astral.sh/uv/) installed; it fetches scad2step on first use.</string>
+                 </property>
+                 <property name="wordWrap">
+                  <bool>true</bool>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <layout class="QHBoxLayout" name="horizontalLayoutStepExport">
+                 <item>
+                  <widget class="QLabel" name="labelStepExportCommand">
+                   <property name="text">
+                    <string>Command</string>
+                   </property>
+                   <property name="buddy">
+                    <cstring>lineEditStepExportCommand</cstring>
+                   </property>
+                  </widget>
+                 </item>
+                 <item>
+                  <widget class="QLineEdit" name="lineEditStepExportCommand"/>
+                 </item>
+                </layout>
+               </item>
+               <item>
+                <layout class="QHBoxLayout" name="horizontalLayoutStepExportEngine">
+                 <item>
+                  <widget class="QLabel" name="labelStepExportEngine">
+                   <property name="text">
+                    <string>Engine</string>
+                   </property>
+                   <property name="buddy">
+                    <cstring>comboBoxStepExportEngine</cstring>
+                   </property>
+                  </widget>
+                 </item>
+                 <item>
+                  <widget class="QComboBox" name="comboBoxStepExportEngine"/>
+                 </item>
+                 <item>
+                  <widget class="QLabel" name="labelStepExportFacetThreshold">
+                   <property name="text">
+                    <string>Honor facet counts below</string>
+                   </property>
+                   <property name="toolTip">
+                    <string>A circle whose segment count is below this value, from an explicit $fn or from $fa/$fs set away from their defaults, is exported as polygonal geometry (circle($fn=6) is a hexagon); at or above it the curve is exact. Default $fa/$fs never facet. 0 always exports exact curves.</string>
+                   </property>
+                   <property name="buddy">
+                    <cstring>spinBoxStepExportFacetThreshold</cstring>
+                   </property>
+                  </widget>
+                 </item>
+                 <item>
+                  <widget class="QSpinBox" name="spinBoxStepExportFacetThreshold">
+                   <property name="alignment">
+                    <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+                   </property>
+                   <property name="maximum">
+                    <number>100000</number>
+                   </property>
+                   <property name="value">
+                    <number>20</number>
+                   </property>
+                  </widget>
+                 </item>
+                 <item>
+                  <widget class="QLabel" name="labelStepExportTimeBudget">
+                   <property name="text">
+                    <string>Time budget (s)</string>
+                   </property>
+                   <property name="toolTip">
+                    <string>Seconds OpenCASCADE may spend building exact geometry before the rest of the model is exported as a mesh instead. 0 means no limit, which is the default: with a limit set, the same model can export exact surfaces on a fast machine and a mesh on a slow one.</string>
+                   </property>
+                   <property name="buddy">
+                    <cstring>spinBoxStepExportTimeBudget</cstring>
+                   </property>
+                  </widget>
+                 </item>
+                 <item>
+                  <widget class="QSpinBox" name="spinBoxStepExportTimeBudget">
+                   <property name="alignment">
+                    <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+                   </property>
+                   <property name="maximum">
+                    <number>86400</number>
+                   </property>
+                   <property name="value">
+                    <number>0</number>
+                   </property>
+                  </widget>
+                 </item>
+                 <item>
+                  <spacer name="horizontalSpacerStepExport">
+                   <property name="orientation">
+                    <enum>Qt::Horizontal</enum>
+                   </property>
+                  </spacer>
+                 </item>
+                </layout>
+               </item>
+              </layout>
+             </widget>
+            </item>
+            <item>
              <widget class="QGroupBox" name="groupBox_CSG">
               <property name="title">
                <string>3D Preview (OpenCSG)</string>

@@ -1,0 +1,40 @@
+{
+ "built": {
+  "bbox": [
+   26.0,
+   21.0,
+   20.0
+  ],
+  "centroid": [
+   0.0,
+   0.0,
+   0.0
+  ],
+  "colors": {
+   "uncolored": 10765.4867
+  },
+  "extent": 10765.4867,
+  "faces": 10,
+  "solids": 1
+ },
+ "dim": 3,
+ "fallbacks": 0,
+ "roundtrip": {
+  "bbox": [
+   26.0,
+   21.0,
+   20.0
+  ],
+  "centroid": [
+   0.0,
+   0.0,
+   0.0
+  ],
+  "colors": {
+   "uncolored": 10765.4867
+  },
+  "extent": 10765.4867,
+  "faces": 10,
+  "solids": 1
+ }
+}

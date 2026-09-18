@@ -107,6 +107,7 @@
 #include "glview/RenderSettings.h"
 #include "handle_dep.h"
 #include "io/export.h"
+#include "io/export_step.h"
 #include "openscad_gui.h"
 #include "openscad_mimalloc.h"
 #include "platform/PlatformUtils.h"
@@ -246,6 +247,7 @@ void help_export()
   help_export(Settings::SettingsExportPdf::cmdline);
   help_export(Settings::SettingsExport3mf::cmdline);
   help_export(Settings::SettingsExportSvg::cmdline);
+  help_export(Settings::SettingsExportStep::cmdline);
   exit(0);
 }
 
@@ -452,6 +454,47 @@ int do_export(const CommandLine& cmd, const RenderVariables& render_variables, F
       stream << tree.getString(*root_node, "\t") << "\n";
     });
     fs::current_path(cmd.original_path);
+  } else if (export_format == FileFormat::STEP) {
+    if (cmd.is_stdout) {
+      LOG(message_group::Error, "STEP export to stdout is not supported");
+      return 1;
+    }
+    const auto engine = set_cmd_line_option(cmd.exportOptions, Settings::SECTION_EXPORT_STEP,
+                                            Settings::SettingsExportStep::exportStepEngine);
+    bool exported = false;
+#ifdef ENABLE_OCCT
+    if (engine == "builtin") {
+      const auto threshold = set_cmd_line_option(cmd.exportOptions, Settings::SECTION_EXPORT_STEP,
+                                                 Settings::SettingsExportStep::exportStepFacetThreshold);
+      const auto budget = set_cmd_line_option(cmd.exportOptions, Settings::SECTION_EXPORT_STEP,
+                                              Settings::SettingsExportStep::exportStepTimeBudget);
+      exported = export_step_native(tree, *root_node, fs::path(filename_str), threshold, budget,
+                                    fpath.filename().string());
+    } else
+#else
+    if (engine == "builtin") {
+      LOG(message_group::Warning,
+          "This OpenSCAD was built without OpenCASCADE; using the external STEP export command");
+    }
+#endif
+    {
+      const auto csgText = tree.getString(*root_node, "\t");
+      const auto command = set_cmd_line_option(cmd.exportOptions, Settings::SECTION_EXPORT_STEP,
+                                               Settings::SettingsExportStep::exportStepCommand);
+      exported = export_step_external(csgText, fs::path(filename_str), fparent, command);
+    }
+    if (!exported) return 1;
+  } else if (export_format == FileFormat::STEP_METRICS) {
+#ifdef ENABLE_OCCT
+    const auto threshold = set_cmd_line_option(cmd.exportOptions, Settings::SECTION_EXPORT_STEP,
+                                               Settings::SettingsExportStep::exportStepFacetThreshold);
+    const auto metrics = step_metrics_json(tree, *root_node, threshold);
+    if (metrics.empty()) return 1;
+    with_output(cmd.is_stdout, filename_str, [&metrics](std::ostream& stream) { stream << metrics; });
+#else
+    LOG(message_group::Error, "This OpenSCAD was built without OpenCASCADE; no STEP metrics");
+    return 1;
+#endif
   } else if (export_format == FileFormat::AST) {
     fs::current_path(fparent);  // Force exported filenames to be relative to document path
     with_output(cmd.is_stdout, filename_str,
@@ -861,7 +904,7 @@ int openscad_main(int argc, char **argv)
       "default so asciistl should be explicitly specified in scripts when needed.\n")
     ("o,o", po::value<std::vector<std::string>>(),
       "output specified file instead of running the GUI. The file extension specifies the type: stl, "
-      "off, wrl, 3mf, csg, dxf, svg, pdf, png, echo, ast, term, nef3, nefdbg, param, pov. May be "
+      "off, wrl, 3mf, csg, step, dxf, svg, pdf, png, echo, ast, term, nef3, nefdbg, param, pov. May be "
       "used multiple times for different exports. Use '-' for stdout.\n")
     ("O,O", po::value<std::vector<std::string>>(),
       "pass settings value to the file export using the format section/key=value, e.g "

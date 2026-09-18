@@ -29,6 +29,7 @@ constexpr inline auto SECTION_PYTHON = "python";
 constexpr inline auto SECTION_EXPORT_PDF = "export-pdf";
 constexpr inline auto SECTION_EXPORT_3MF = "export-3mf";
 constexpr inline auto SECTION_EXPORT_SVG = "export-svg";
+constexpr inline auto SECTION_EXPORT_STEP = "export-step";
 constexpr inline auto SECTION_COLOR_LIST = "color-list";
 
 class SettingsEntryBase
@@ -562,6 +563,21 @@ public:
     &exportPdfFill,           &exportPdfFillColor,        &exportPdfStroke,
     &exportPdfStrokeColor,    &exportPdfStrokeWidth,
   };
+};
+
+class SettingsExportStep
+{
+public:
+  // External converter invoked as: <command> <tree>.csg -o <output>.step
+  static SettingsEntryString exportStepCommand;
+  // "builtin" (OpenCASCADE, when compiled in) or "external" (the command above).
+  static SettingsEntryEnum<std::string> exportStepEngine;
+  // A $fn below this is honored as polygonal geometry; at or above it the curve is exact.
+  static SettingsEntryInt exportStepFacetThreshold;
+  static SettingsEntryInt exportStepTimeBudget;
+
+  static constexpr std::array<const SettingsEntryBase *, 3> cmdline{
+    &exportStepCommand, &exportStepEngine, &exportStepFacetThreshold};
 };
 
 class SettingsExport3mf

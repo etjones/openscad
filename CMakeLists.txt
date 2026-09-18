@@ -73,6 +73,7 @@ option(ENABLE_MANIFOLD "Enable Manifold." ON)
 option(CMAKE_REQUIRE_FIND_PACKAGE_Lib3MF "Require Lib3MF." ON)
 option(ALLOW_BUNDLED_HIDAPI "Allow usage of bundled HIDAPI library (Windows only)." OFF)
 option(ENABLE_PYTHON "Enable experimental Python Interpreter" OFF)
+option(ENABLE_OCCT "Enable STEP export through a built-in OpenCASCADE B-rep evaluator (experimental)" OFF)
 option(BUILD_SHARED_LIBS "Build shared library" OFF)
 include(CMakeDependentOption)
 cmake_dependent_option(APPLE_UNIX "Build OpenSCAD in Unix mode in MacOS X instead of an Apple Bundle" OFF "APPLE" OFF)
@@ -1098,6 +1099,7 @@ set(CORE_SOURCES
   src/io/export_off.cc
   src/io/export_param.cc
   src/io/export_pdf.cc
+  src/io/export_step.cc
   src/io/export_stl.cc
   src/io/export_svg.cc
   src/io/export_pov.cc
@@ -1475,6 +1477,30 @@ if (ENABLE_MANIFOLD)
   target_compile_definitions(OpenSCADLibInternal PUBLIC ENABLE_MANIFOLD)
   list(APPEND Sources ${MANIFOLD_SOURCES})
 endif()
+if (ENABLE_OCCT)
+  find_package(OpenCASCADE REQUIRED)
+  message(STATUS "OpenCASCADE: ${OpenCASCADE_VERSION}")
+  target_compile_definitions(OpenSCADLibInternal PUBLIC ENABLE_OCCT)
+  target_include_directories(OpenSCADLibInternal PUBLIC ${OpenCASCADE_INCLUDE_DIR})
+  # OCCT 7.8 folded the STEP toolkits into TKDE/TKDESTEP.
+  if(OpenCASCADE_VERSION VERSION_LESS 7.8)
+    set(OCCT_STEP_TOOLKITS TKSTEPBase TKSTEPAttr TKSTEP209 TKSTEP TKXDESTEP)
+  else()
+    set(OCCT_STEP_TOOLKITS TKDE TKDESTEP)
+  endif()
+  target_link_libraries(OpenSCADLibInternal PUBLIC
+    TKernel TKMath TKG2d TKG3d TKGeomBase TKBRep TKGeomAlgo TKTopAlgo TKPrim TKBO TKBool
+    TKShHealing TKOffset TKMesh TKXSBase ${OCCT_STEP_TOOLKITS} TKCDF TKLCAF TKCAF TKXCAF TKVCAF)
+  list(APPEND Sources
+    src/geometry/occt/OcctBoolean.cc
+    src/geometry/occt/OcctBridge.cc
+    src/geometry/occt/OcctBuilder.cc
+    src/geometry/occt/OcctHull.cc
+    src/geometry/occt/OcctRevolvedHull.cc
+    src/geometry/occt/OcctMesh.cc
+    src/geometry/occt/OcctProgress.cc
+    src/io/export_step_native.cc)
+endif()
 if (ENABLE_CGAL)
   list(APPEND Sources ${CGAL_SOURCES})
 endif()
@@ -1578,6 +1604,10 @@ file(GLOB_RECURSE TEST_SOURCES
   "src/core/*_test.cc"
   "src/io/*_test.cc"
 )
+if(ENABLE_OCCT)
+  file(GLOB OCCT_TEST_SOURCES "src/geometry/occt/*_test.cc")
+  list(APPEND TEST_SOURCES ${OCCT_TEST_SOURCES})
+endif()
 file(GLOB_RECURSE GUI_TEST_SOURCES
   "src/gui/*_test.cc"
 )

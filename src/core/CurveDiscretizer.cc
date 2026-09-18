@@ -21,6 +21,8 @@
 #include "utils/printutils.h"
 
 #define F_MINIMUM 0.01
+#define DEFAULT_FA 12.0
+#define DEFAULT_FS 2.0
 
 CurveDiscretizer::CurveDiscretizer(const Parameters& parameters, const Location& loc)
 {
@@ -79,8 +81,16 @@ CurveDiscretizer::CurveDiscretizer(std::function<std::optional<double>(const cha
   // Don't know why it differs from OpenSCAD language.
   fn = std::max(valueLookup("fn").value_or(0.0), 0.0);
   fe = std::max(valueLookup("fe").value_or(0.0), 0.0);
-  fa = std::max(valueLookup("fa").value_or(12.0), F_MINIMUM);
-  fs = std::max(valueLookup("fs").value_or(2.0), F_MINIMUM);
+  fa = std::max(valueLookup("fa").value_or(DEFAULT_FA), F_MINIMUM);
+  fs = std::max(valueLookup("fs").value_or(DEFAULT_FS), F_MINIMUM);
+}
+
+std::optional<int> CurveDiscretizer::explicitSegmentCount(double r) const
+{
+  if (const auto count = explicitFn()) return count;
+  const bool defaultFineness = fa == DEFAULT_FA && fs == DEFAULT_FS && !(fe >= GRID_FINE);
+  if (defaultFineness) return std::nullopt;
+  return getCircularSegmentCount(r);
 }
 
 double segments_given_fa(double r, double fa)
