@@ -131,7 +131,12 @@ is 9e-16 before and after. It is rejected if it moves the extent.
 Every export reads its own file back and compares it with the geometry it
 was given, warning if they differ by more than half a percent. This is the
 check that would have caught the seam defect above without a user
-reporting it. It costs a read of the file just written.
+reporting it.
+
+It is not free. Over a 500-model corpus it added 14% to total export time,
+and on the largest files it costs tens of seconds, because reading a STEP
+back is comparable work to writing it. Whether that is the right default,
+or whether it belongs behind a setting, is a fair question for review.
 
 ## Time budget
 
