@@ -52,21 +52,16 @@ jobs:
         with:
           version: '22.1.7'
           build-type: 'release-mingw'
+      # The STEP evaluator (ENABLE_OCCT) is not built here: the msys2
+      # opencascade 7.9.3-3 package, compiled with GCC 16, segfaults inside
+      # Extrema_ExtCC::Perform on any boolean involving a curved surface
+      # (backtrace in etjones/openscad#1). Re-enable once the package works.
       - name: Build OpenSCAD
         run: |
           mkdir build && cd build
-          cmake .. -G"Ninja" -DCMAKE_INSTALL_PREFIX=/usr -DCMAKE_BUILD_TYPE=Release -DEXPERIMENTAL=ON -DSNAPSHOT=ON -DENABLE_OCCT=ON -DUSE_QT6=${{ matrix.qt == 'qt6' && 'ON' || 'OFF' }}
+          cmake .. -G"Ninja" -DCMAKE_INSTALL_PREFIX=/usr -DCMAKE_BUILD_TYPE=Release -DEXPERIMENTAL=ON -DSNAPSHOT=ON -DUSE_QT6=${{ matrix.qt == 'qt6' && 'ON' || 'OFF' }}
           cmake --build . -j4
           cmake --install . --prefix=.
-      - name: OCCT crash backtrace (diagnostic)
-        shell: msys2 {0}
-        run: |
-          set +e
-          cd build
-          gdb -batch -ex run -ex bt -ex "info sharedlibrary" --args ./OpenSCADUnitTests.exe "OcctBoolean cut and common" -c "common of disjoint shapes is empty" < /dev/null 2>&1 | grep -vE '^\[New Thread|^\[Thread|^warning: ' | tail -60
-          echo "===== booleans.scad"
-          gdb -batch -ex run -ex bt --args ./openscad.exe -o booleans.json --export-format step-metrics ../tests/data/scad/step/booleans.scad < /dev/null 2>&1 | grep -vE '^\[New Thread|^\[Thread|^warning: ' | tail -40
-          exit 0
       - name: Run Test Suite
         run: |
           cd build
