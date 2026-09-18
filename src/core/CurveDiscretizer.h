@@ -103,6 +103,14 @@ public:
     return std::max(3, static_cast<int>(std::ceil(fn)));
   }
 
+  /**
+   * The segment count a circle of radius r gets at this node when the user
+   * asked for it deliberately: an explicit $fn, or $fa/$fs/$fe changed from
+   * their defaults. Default fineness yields nullopt, so callers can keep
+   * curves exact where the user expressed no opinion.
+   */
+  std::optional<int> explicitSegmentCount(double r) const;
+
 private:
   CurveDiscretizer(double fn, double fs, double fa) : fn(fn), fs(fs), fa(fa) {}
 

@@ -208,11 +208,12 @@ void OcctBuilder::warn(const AbstractNode& node, const std::string& message) con
   OcctBridge::warn(node, tree_, message);
 }
 
-bool OcctBuilder::shouldFacet(const CurveDiscretizer& discretizer) const
+std::optional<int> OcctBuilder::facetCount(const CurveDiscretizer& discretizer, double r) const
 {
-  if (facetThreshold_ <= 0) return false;
-  const auto fn = discretizer.explicitFn();
-  return fn && *fn < facetThreshold_;
+  if (facetThreshold_ <= 0) return std::nullopt;
+  const auto count = discretizer.explicitSegmentCount(r);
+  if (!count || *count >= facetThreshold_) return std::nullopt;
+  return count;
 }
 
 std::vector<OcctGeometry> OcctBuilder::buildChildren(const AbstractNode& node, const Color4f& inherited)
@@ -551,10 +552,9 @@ OcctGeometry OcctBuilder::cube(const CubeNode& node, const Color4f& color)
 OcctGeometry OcctBuilder::sphere(const SphereNode& node, const Color4f& color)
 {
   if (!(node.r > 0)) return {};
-  if (shouldFacet(node.discretizer)) {
+  if (const auto count = facetCount(node.discretizer, node.r)) {
     // OpenSCAD's sphere is a stack of rings; let it build that mesh.
-    return meshFallback(node, color,
-                        "faceted sphere, $fn=" + std::to_string(*node.discretizer.explicitFn()));
+    return meshFallback(node, color, "faceted sphere, " + std::to_string(*count) + " segments");
   }
   return single(BRepPrimAPI_MakeSphere(node.r).Shape(), 3, color);
 }
@@ -566,8 +566,8 @@ OcctGeometry OcctBuilder::cylinder(const CylinderNode& node, const Color4f& colo
   const double r2 = std::max(node.r2, 0.0);
   const double z0 = node.center ? -node.h / 2 : 0.0;
   TopoDS_Shape shape;
-  if (shouldFacet(node.discretizer)) {
-    const int count = *node.discretizer.explicitFn();
+  if (const auto faceted = facetCount(node.discretizer, std::max(r1, r2))) {
+    const int count = *faceted;
     std::vector<Vector3d> points;
     std::vector<std::vector<size_t>> faces;
     const auto bottom = r1 > 0 ? ngon(r1, count) : std::vector<Vector2d>{};
@@ -659,9 +659,9 @@ OcctGeometry OcctBuilder::square(const SquareNode& node, const Color4f& color)
 OcctGeometry OcctBuilder::circle(const CircleNode& node, const Color4f& color)
 {
   if (!(node.r > 0)) return {};
-  if (shouldFacet(node.discretizer)) {
+  if (const auto count = facetCount(node.discretizer, node.r)) {
     std::vector<Vector3d> ring;
-    for (const auto& p : ngon(node.r, *node.discretizer.explicitFn())) ring.emplace_back(p[0], p[1], 0);
+    for (const auto& p : ngon(node.r, *count)) ring.emplace_back(p[0], p[1], 0);
     return single(OcctMesh::faceFromRing(ring), 2, color);
   }
   const gp_Circ circ(gp_Ax2(gp_Pnt(0, 0, 0), gp_Dir(0, 0, 1)), node.r);

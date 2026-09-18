@@ -10,6 +10,7 @@
 #include <string>
 #include <vector>
 
+#include "core/CurveDiscretizer.h"
 #include "geometry/occt/OcctBoolean.h"
 #include "geometry/occt/OcctBridge.h"
 #include "geometry/occt/OcctHull.h"
@@ -268,4 +269,29 @@ TEST_CASE("OcctHull minkowski with a ball is an offset", "[occt][hull]")
   const double r = 2;
   const double exact = 1000 + 600 * r + r * r / 2 * 12 * 10 * M_PI / 2 + 4.0 / 3.0 * M_PI * r * r * r;
   CHECK_THAT(volume(m), WithinRel(exact, 1e-9));
+}
+
+namespace {
+
+CurveDiscretizer fineness(double fn, double fa, double fs)
+{
+  return CurveDiscretizer([=](const char *name) -> std::optional<double> {
+    const std::string key(name);
+    if (key == "fn") return fn;
+    if (key == "fa") return fa;
+    if (key == "fs") return fs;
+    return std::nullopt;
+  });
+}
+
+}  // namespace
+
+TEST_CASE("explicit segment counts come from $fn or from non-default $fa/$fs", "[occt]")
+{
+  REQUIRE(fineness(8, 12, 2).explicitSegmentCount(5) == 8);
+  // Default fineness makes a pentagon of a tiny circle in preview, but says nothing about intent.
+  REQUIRE_FALSE(fineness(0, 12, 2).explicitSegmentCount(1).has_value());
+  REQUIRE(fineness(0, 70, 2).explicitSegmentCount(4.9) == 6);
+  REQUIRE(fineness(0, 12, 3).explicitSegmentCount(3) == 7);
+  REQUIRE(fineness(0, 1, 2).explicitSegmentCount(5) == 16);
 }

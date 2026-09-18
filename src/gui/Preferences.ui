@@ -2082,10 +2082,10 @@
                  <item>
                   <widget class="QLabel" name="labelStepExportFacetThreshold">
                    <property name="text">
-                    <string>Honor $fn below</string>
+                    <string>Honor facet counts below</string>
                    </property>
                    <property name="toolTip">
-                    <string>A $fn below this value is exported as polygonal geometry (circle($fn=6) is a hexagon); at or above it the curve is exact. 0 always exports exact curves.</string>
+                    <string>A circle whose segment count is below this value, from an explicit $fn or from $fa/$fs set away from their defaults, is exported as polygonal geometry (circle($fn=6) is a hexagon); at or above it the curve is exact. Default $fa/$fs never facet. 0 always exports exact curves.</string>
                    </property>
                    <property name="buddy">
                     <cstring>spinBoxStepExportFacetThreshold</cstring>

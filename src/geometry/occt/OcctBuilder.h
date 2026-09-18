@@ -1,5 +1,6 @@
 #pragma once
 
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -77,7 +78,7 @@ private:
   // The union of a node's 2D children as one Polygon2d-derived compound of faces.
   OcctGeometry flatChildren(const AbstractNode& node, const Color4f& inherited, unsigned int wantDim);
 
-  [[nodiscard]] bool shouldFacet(const class CurveDiscretizer& discretizer) const;
+  [[nodiscard]] std::optional<int> facetCount(const class CurveDiscretizer& discretizer, double r) const;
   void warn(const AbstractNode& node, const std::string& message) const;
 
   const Tree& tree_;
