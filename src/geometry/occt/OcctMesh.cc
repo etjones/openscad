@@ -204,6 +204,9 @@ TopoDS_Shape solidsFromFaceList(const std::vector<TopoDS_Shape>& faces, double t
   }
   BRepBuilderAPI_Sewing sewing(tolerance);
   for (const auto& f : faces) sewing.Add(f);
+  // Deliberately not given the export's time budget: sewing a mesh is the
+  // fallback the budget falls back *to*, so cutting it short would leave
+  // the node with nothing at all.
   sewing.Perform();
   const auto sewn = sewing.SewedShape();
   if (sewn.IsNull()) {

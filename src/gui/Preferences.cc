@@ -419,6 +419,7 @@ void Preferences::init()
   initComboBox(this->comboBoxStepExportEngine, Settings::SettingsExportStep::exportStepEngine);
   initIntSpinBox(this->spinBoxStepExportFacetThreshold,
                  Settings::SettingsExportStep::exportStepFacetThreshold);
+  initIntSpinBox(this->spinBoxStepExportTimeBudget, Settings::SettingsExportStep::exportStepTimeBudget);
   initComboBox(this->comboBoxOctoPrintAction, Settings::Settings::octoPrintAction);
   initComboBox(this->comboBoxLocalAppFileFormat, Settings::Settings::localAppFileFormat);
   initComboBox(this->comboBoxRenderBackend3D, Settings::Settings::renderBackend3D);
@@ -1200,6 +1201,12 @@ void Preferences::on_comboBoxStepExportEngine_activated(int val)
 void Preferences::on_spinBoxStepExportFacetThreshold_valueChanged(int val)
 {
   Settings::SettingsExportStep::exportStepFacetThreshold.setValue(val);
+  writeSettings();
+}
+
+void Preferences::on_spinBoxStepExportTimeBudget_valueChanged(int val)
+{
+  Settings::SettingsExportStep::exportStepTimeBudget.setValue(val);
   writeSettings();
 }
 
@@ -2041,6 +2048,8 @@ void Preferences::updateGUI()
   updateIntSpinBox(this->spinBoxTabWidth, Settings::Settings::tabWidth);
   updateIntSpinBox(this->spinBoxStepExportFacetThreshold,
                    Settings::SettingsExportStep::exportStepFacetThreshold);
+  updateIntSpinBox(this->spinBoxStepExportTimeBudget,
+                   Settings::SettingsExportStep::exportStepTimeBudget);
   updateComboBox(this->comboBoxStepExportEngine, Settings::SettingsExportStep::exportStepEngine);
   updateIntSpinBox(this->spinBoxLineWrapIndentationIndent, Settings::Settings::lineWrapIndentation);
   updateIntSpinBox(this->spinBoxShowWhitespaceSize, Settings::Settings::showWhitespaceSize);

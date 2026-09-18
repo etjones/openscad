@@ -37,6 +37,7 @@
 #include <vector>
 
 #include "geometry/occt/OcctBoolean.h"
+#include "geometry/occt/OcctProgress.h"
 #include "geometry/occt/OcctBuilder.h"
 #include "geometry/occt/OcctGeometry.h"
 #include "io/export_step.h"
@@ -248,6 +249,64 @@ void collectReadBack(const Handle(XCAFDoc_ShapeTool) & shapes, const Handle(XCAF
   byColor[key] += OcctBoolean::extent(shape, dim);
 }
 
+// Reads a written STEP back and measures it, so a caller can ask whether
+// the file says what the geometry it was given said.
+nlohmann::json measureFile(const fs::path& path, unsigned int dim)
+{
+  Handle(TDocStd_Document) doc;
+  XCAFApp_Application::GetApplication()->NewDocument("MDTV-XCAF", doc);
+  STEPCAFControl_Reader reader;
+  reader.SetColorMode(true);
+  reader.SetNameMode(true);
+  if (reader.ReadFile(path.string().c_str()) != IFSelect_RetDone || !reader.Transfer(doc)) return {};
+  auto shapeTool = XCAFDoc_DocumentTool::ShapeTool(doc->Main());
+  auto colorTool = XCAFDoc_DocumentTool::ColorTool(doc->Main());
+  TDF_LabelSequence free;
+  shapeTool->GetFreeShapes(free);
+  std::vector<TopoDS_Shape> all;
+  std::map<std::string, double> colorsBack;
+  for (int i = 1; i <= free.Length(); ++i) {
+    collectReadBack(shapeTool, colorTool, free.Value(i), all, colorsBack, dim);
+  }
+  auto out = measure(OcctBoolean::makeCompound(all), dim);
+  for (auto& [key, value] : colorsBack) out["colors"][key] = rounded(value);
+  return out;
+}
+
+// How far the written file's extent may sit from the geometry it was given
+// before the export says so. Splitting seams re-measures curved faces by a
+// few parts in ten thousand, so this sits well above that and far below
+// anything a reader would see as missing.
+constexpr double READBACK_RTOL = 5e-3;
+
+// Reads the file just written and warns if it does not hold what it was
+// given. The failure this exists for is silent: an ellipsoid fused to a
+// cylinder wrote a file whose ellipsoid came back with no volume at all,
+// and nothing in the export path could tell.
+void verifyWritten(const fs::path& path, const OcctGeometry& geometry)
+{
+  std::vector<TopoDS_Shape> shapes;
+  for (const auto& body : geometry.bodies) shapes.push_back(body.shape);
+  const double built = OcctBoolean::extent(OcctBoolean::makeCompound(shapes), geometry.dim);
+  nlohmann::json readBack;
+  try {
+    readBack = measureFile(path, geometry.dim);
+  } catch (const Standard_Failure& e) {
+    OcctBridge::warn(std::string("STEP export: the file could not be read back to check it: ") +
+                     e.GetMessageString());
+    return;
+  }
+  if (readBack.is_null() || !readBack.contains("extent")) {
+    OcctBridge::warn("STEP export: the file could not be read back to check it");
+    return;
+  }
+  const double after = readBack["extent"].get<double>();
+  if (std::fabs(after - built) <= READBACK_RTOL * std::max(std::fabs(built), 1e-9)) return;
+  OcctBridge::warn("STEP export: the file reads back as " + std::to_string(after) + " against the " +
+                   std::to_string(built) +
+                   " that was built; some geometry did not survive being written");
+}
+
 }  // namespace
 
 std::string step_metrics_json(const Tree& tree, const AbstractNode& root, int facetThreshold)
@@ -280,26 +339,7 @@ std::string step_metrics_json(const Tree& tree, const AbstractNode& root, int fa
       fs::temp_directory_path() / ("openscad-step-metrics-" + std::to_string(rd()) + ".step");
     nlohmann::json readBack;
     try {
-      if (writeStep(geometry, path, "metrics")) {
-        Handle(TDocStd_Document) doc;
-        XCAFApp_Application::GetApplication()->NewDocument("MDTV-XCAF", doc);
-        STEPCAFControl_Reader reader;
-        reader.SetColorMode(true);
-        reader.SetNameMode(true);
-        if (reader.ReadFile(path.string().c_str()) == IFSelect_RetDone && reader.Transfer(doc)) {
-          auto shapeTool = XCAFDoc_DocumentTool::ShapeTool(doc->Main());
-          auto colorTool = XCAFDoc_DocumentTool::ColorTool(doc->Main());
-          TDF_LabelSequence free;
-          shapeTool->GetFreeShapes(free);
-          std::vector<TopoDS_Shape> all;
-          std::map<std::string, double> colorsBack;
-          for (int i = 1; i <= free.Length(); ++i) {
-            collectReadBack(shapeTool, colorTool, free.Value(i), all, colorsBack, geometry.dim);
-          }
-          readBack = measure(OcctBoolean::makeCompound(all), geometry.dim);
-          for (auto& [key, value] : colorsBack) readBack["colors"][key] = rounded(value);
-        }
-      }
+      if (writeStep(geometry, path, "metrics")) readBack = measureFile(path, geometry.dim);
     } catch (const Standard_Failure& e) {
       OcctBridge::error(std::string("STEP metrics round trip failed: ") + e.GetMessageString());
     }
@@ -311,21 +351,31 @@ std::string step_metrics_json(const Tree& tree, const AbstractNode& root, int fa
 }
 
 bool export_step_native(const Tree& tree, const AbstractNode& root, const fs::path& outputPath,
-                        int facetThreshold, const std::string& title)
+                        int facetThreshold, int timeBudget, const std::string& title)
 {
   quietOcct();
+  OcctProgress::setBudget(timeBudget);
   OcctBuilder builder(tree, facetThreshold);
   OcctGeometry geometry;
   try {
     geometry = builder.build(root);
   } catch (const Standard_Failure& e) {
     OcctBridge::error(std::string("STEP export failed in OpenCASCADE: ") + e.GetMessageString());
+    OcctProgress::clear();
     return false;
+  }
+  const bool ranOut = OcctProgress::stopped();
+  OcctProgress::clear();
+  if (ranOut) {
+    OcctBridge::warn("STEP export: the time budget of " + std::to_string(timeBudget) +
+                     "s ran out; the geometry it had not finished was rendered as a mesh");
   }
   if (geometry.isEmpty()) {
     OcctBridge::error("STEP export: the model produced no geometry");
     return false;
   }
 
-  return writeStep(geometry, outputPath, title);
+  if (!writeStep(geometry, outputPath, title)) return false;
+  verifyWritten(outputPath, geometry);
+  return true;
 }

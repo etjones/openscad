@@ -1,5 +1,7 @@
 #include "geometry/occt/OcctBoolean.h"
 
+#include "geometry/occt/OcctProgress.h"
+
 #include <BRepAlgoAPI_BooleanOperation.hxx>
 #include <BRepAlgoAPI_Common.hxx>
 #include <BRepAlgoAPI_Cut.hxx>
@@ -127,7 +129,7 @@ TopoDS_Shape run(const Operation& make, const std::vector<TopoDS_Shape>& args,
     // Deterministic results: parallel booleans were seen to return
     // different volumes for the same model on successive runs.
     op->SetRunParallel(false);
-    op->Build();
+    op->Build(OcctProgress::range());
     if (!op->IsDone() || op->HasErrors()) return {};
     return op->Shape();
   } catch (const Standard_Failure&) {

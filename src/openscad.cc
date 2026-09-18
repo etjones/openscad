@@ -466,7 +466,9 @@ int do_export(const CommandLine& cmd, const RenderVariables& render_variables, F
     if (engine == "builtin") {
       const auto threshold = set_cmd_line_option(cmd.exportOptions, Settings::SECTION_EXPORT_STEP,
                                                  Settings::SettingsExportStep::exportStepFacetThreshold);
-      exported = export_step_native(tree, *root_node, fs::path(filename_str), threshold,
+      const auto budget = set_cmd_line_option(cmd.exportOptions, Settings::SECTION_EXPORT_STEP,
+                                              Settings::SettingsExportStep::exportStepTimeBudget);
+      exported = export_step_native(tree, *root_node, fs::path(filename_str), threshold, budget,
                                     fpath.filename().string());
     } else
 #else

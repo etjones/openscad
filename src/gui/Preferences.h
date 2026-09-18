@@ -136,6 +136,7 @@ public slots:
   void on_lineEditStepExportCommand_editingFinished();
   void on_comboBoxStepExportEngine_activated(int);
   void on_spinBoxStepExportFacetThreshold_valueChanged(int);
+  void on_spinBoxStepExportTimeBudget_valueChanged(int);
   void on_toolButtonLocalAppSelectExecutable_clicked();
   void on_lineEditLocalAppTempDir_editingFinished();
   void on_toolButtonLocalAppSelectTempDir_clicked();

@@ -2666,6 +2666,7 @@ void MainWindow::actionExportFileFormat(int fmt)
     if (Settings::SettingsExportStep::exportStepEngine.value() == "builtin") {
       exported = export_step_native(this->tree, *this->rootNode, outputPath,
                                     Settings::SettingsExportStep::exportStepFacetThreshold.value(),
+                                    Settings::SettingsExportStep::exportStepTimeBudget.value(),
                                     sourcePath.filename().string());
     } else
 #endif

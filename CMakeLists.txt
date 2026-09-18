@@ -1498,6 +1498,7 @@ if (ENABLE_OCCT)
     src/geometry/occt/OcctHull.cc
     src/geometry/occt/OcctRevolvedHull.cc
     src/geometry/occt/OcctMesh.cc
+    src/geometry/occt/OcctProgress.cc
     src/io/export_step_native.cc)
 endif()
 if (ENABLE_CGAL)

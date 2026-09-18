@@ -2106,6 +2106,32 @@
                   </widget>
                  </item>
                  <item>
+                  <widget class="QLabel" name="labelStepExportTimeBudget">
+                   <property name="text">
+                    <string>Time budget (s)</string>
+                   </property>
+                   <property name="toolTip">
+                    <string>Seconds OpenCASCADE may spend building exact geometry before the rest of the model is exported as a mesh instead. 0 means no limit, which is the default: with a limit set, the same model can export exact surfaces on a fast machine and a mesh on a slow one.</string>
+                   </property>
+                   <property name="buddy">
+                    <cstring>spinBoxStepExportTimeBudget</cstring>
+                   </property>
+                  </widget>
+                 </item>
+                 <item>
+                  <widget class="QSpinBox" name="spinBoxStepExportTimeBudget">
+                   <property name="alignment">
+                    <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+                   </property>
+                   <property name="maximum">
+                    <number>86400</number>
+                   </property>
+                   <property name="value">
+                    <number>0</number>
+                   </property>
+                  </widget>
+                 </item>
+                 <item>
                   <spacer name="horizontalSpacerStepExport">
                    <property name="orientation">
                     <enum>Qt::Horizontal</enum>

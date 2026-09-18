@@ -48,8 +48,13 @@ class AbstractNode;
 // STEP export through the built-in OpenCASCADE evaluator: the node tree
 // is rebuilt as B-rep geometry and written as an XDE document, one
 // product per body, colored and grouped by color.
+// `timeBudget` is a wall-clock limit in seconds for the B-rep work, or 0
+// for none. Past it OpenCASCADE abandons whatever it is doing and the
+// region falls back to a mesh, so a pathological model still produces a
+// file. Off by default, so that the same model always exports the same
+// geometry whatever the machine.
 bool export_step_native(const Tree& tree, const AbstractNode& root,
-                        const std::filesystem::path& outputPath, int facetThreshold,
+                        const std::filesystem::path& outputPath, int facetThreshold, int timeBudget,
                         const std::string& title);
 
 // Measurements of what the built-in evaluator produces, as JSON, for
