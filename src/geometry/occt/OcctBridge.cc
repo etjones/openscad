@@ -18,6 +18,11 @@
 
 namespace OcctBridge {
 
+std::string idString(const Tree& tree, const AbstractNode& node)
+{
+  return tree.getIdString(node);
+}
+
 std::unique_ptr<GeometryEvaluator> makeEvaluator(const Tree& tree)
 {
   return std::make_unique<GeometryEvaluator>(tree);

@@ -69,6 +69,14 @@ constexpr double POINT_TOL = 1e-7;
 // several, and eight caught every case seen in the corpus.
 constexpr size_t SAMPLES_PER_BODY = 8;
 
+// A ceiling on the point-against-body tests one check may run. Classifying
+// a point costs a ray cast against every face of the body, so a union of
+// hundreds of mesh-derived bodies would otherwise spend minutes here. Past
+// the ceiling the check stops and reports nothing rather than hanging: it
+// is a detector, and a detector that never returns is worse than one that
+// misses.
+constexpr size_t MAX_CONTAINMENT_TESTS = 512;
+
 // Fuzzy values tried, as fractions of the operands' bounding diagonal.
 constexpr std::array<double, 4> FUZZ_FRACTIONS{1e-7, 1e-6, 1e-5, 1e-4};
 
@@ -169,9 +177,19 @@ bool inside(const TopoDS_Shape& solid, const gp_Pnt& point);
 class PointInSolid
 {
 public:
-  explicit PointInSolid(const TopoDS_Shape& solid) : classifier_(solid) {}
+  explicit PointInSolid(const TopoDS_Shape& solid) : classifier_(solid)
+  {
+    BRepBndLib::Add(solid, box_);
+    box_.Enlarge(POINT_TOL);
+  }
+
   [[nodiscard]] TopAbs_State state(const gp_Pnt& point) const
   {
+    // A point outside the body's own bounding box cannot be inside it, and
+    // the box test costs nothing beside the classifier's ray cast against
+    // every face. It is what makes these checks affordable on a model made
+    // of hundreds of mesh-derived bodies, where nearly every pair misses.
+    if (box_.IsOut(point)) return TopAbs_OUT;
     classifier_.Perform(point, POINT_TOL);
     return classifier_.State();
   }
@@ -179,6 +197,7 @@ public:
 
 private:
   mutable BRepClass3d_SolidClassifier classifier_;
+  Bnd_Box box_;
 };
 
 // BRepClass3d_SolidClassifier can be neither copied nor moved, so the
@@ -325,8 +344,11 @@ bool keepsUncoveredMaterial(const std::vector<TopoDS_Shape>& args,
   if (dim != 3) return true;
   const auto bodies = classifiers(piecesOf(result, dim));
   const auto cutters = classifiers(tools);
+  size_t tests = 0;
   for (const auto& arg : args) {
+    if (tests >= MAX_CONTAINMENT_TESTS) break;
     for (const auto& point : interiorPoints(arg, SAMPLES_PER_BODY)) {
+      tests += cutters.size() + bodies.size();
       const bool covered = std::any_of(cutters.begin(), cutters.end(), [&](const auto& tool) {
         return tool->state(point) != TopAbs_OUT;
       });
@@ -346,8 +368,11 @@ bool keepsOperands(const std::vector<TopoDS_Shape>& operands, const TopoDS_Shape
 {
   if (dim != 3) return true;
   const auto bodies = classifiers(piecesOf(result, dim));
+  size_t tests = 0;
   for (const auto& operand : operands) {
+    if (tests >= MAX_CONTAINMENT_TESTS) break;
     for (const auto& point : interiorPoints(operand, SAMPLES_PER_BODY)) {
+      tests += bodies.size();
       if (!anyContains(bodies, point)) return false;
     }
   }

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <optional>
+#include <unordered_map>
 #include <string>
 #include <vector>
 
@@ -52,6 +53,7 @@ public:
 
 private:
   OcctGeometry buildNode(const AbstractNode& node, const Color4f& inherited);
+  OcctGeometry buildNodeUncached(const AbstractNode& node, const Color4f& inherited);
   std::vector<OcctGeometry> buildChildren(const AbstractNode& node, const Color4f& inherited);
 
   OcctGeometry unionOf(const AbstractNode& node, std::vector<OcctGeometry> children);
@@ -88,6 +90,8 @@ private:
   int facetThreshold_;
   std::unique_ptr<GeometryEvaluator> evaluator_;
   std::vector<std::string> fallbacks_;
+  // Built geometry by node id string and inherited colour; see buildNode.
+  std::unordered_map<std::string, OcctGeometry> cache_;
   // Set when a boolean below the node being built could not be verified;
   // the node is then rendered to a mesh instead of trusting the result.
   bool unverified_ = false;

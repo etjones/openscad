@@ -39,6 +39,11 @@ struct Rendered {
 };
 
 std::unique_ptr<GeometryEvaluator> makeEvaluator(const Tree& tree);
+
+// The tree's own identifier for a subtree, memoised by the tree. Equal
+// strings mean equal geometry, which is how repeated subtrees are built
+// once.
+std::string idString(const Tree& tree, const AbstractNode& node);
 Rendered render(GeometryEvaluator& evaluator, const AbstractNode& node);
 
 void warn(const std::string& message);

@@ -228,6 +228,26 @@ std::vector<OcctGeometry> OcctBuilder::buildChildren(const AbstractNode& node, c
 
 OcctGeometry OcctBuilder::buildNode(const AbstractNode& node, const Color4f& inherited)
 {
+  // The same subtree turns up many times in a model that scatters a shape:
+  // one corpus pot places 810 copies of a single vent, each of which would
+  // otherwise be built, rendered and sewn from scratch. The key is the
+  // node's id string, which the tree memoises, plus the colour inherited
+  // from above, since that is carried on the bodies rather than the shape.
+  std::string key = OcctBridge::idString(tree_, node);
+  if (inherited.isValid()) {
+    float r = 0, g = 0, b = 0, a = 0;
+    inherited.getRgba(r, g, b, a);
+    key += "|" + std::to_string(r) + "," + std::to_string(g) + "," + std::to_string(b) + "," +
+           std::to_string(a);
+  }
+  if (const auto it = cache_.find(key); it != cache_.end()) return it->second;
+  auto built = buildNodeUncached(node, inherited);
+  cache_.emplace(std::move(key), built);
+  return built;
+}
+
+OcctGeometry OcctBuilder::buildNodeUncached(const AbstractNode& node, const Color4f& inherited)
+{
   if (const auto *n = dynamic_cast<const CubeNode *>(&node)) return cube(*n, inherited);
   if (const auto *n = dynamic_cast<const SphereNode *>(&node)) return sphere(*n, inherited);
   if (const auto *n = dynamic_cast<const CylinderNode *>(&node)) return cylinder(*n, inherited);

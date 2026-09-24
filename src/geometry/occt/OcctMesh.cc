@@ -1,5 +1,11 @@
 #include "geometry/occt/OcctMesh.h"
 
+#include <BRepBuilderAPI_MakeVertex.hxx>
+#include <BRepBuilderAPI_MakeWire.hxx>
+#include <BRepBuilderAPI_MakeEdge.hxx>
+#include <functional>
+#include <unordered_map>
+#include <cstdint>
 #include <BRepBuilderAPI_MakeFace.hxx>
 #include <BRepBuilderAPI_MakePolygon.hxx>
 #include <BRepBuilderAPI_MakeSolid.hxx>
@@ -193,41 +199,17 @@ int countFreeEdges(const TopoDS_Shape& shape)
   return free;
 }
 
-// Sew faces into shells, then solids with cavities. Null if nothing closes.
-TopoDS_Shape solidsFromFaceList(const std::vector<TopoDS_Shape>& faces, double tolerance, int& freeEdges,
-                                std::string& why)
+// Turn closed shells into solids, nesting any shell that lies inside
+// another as that solid's cavity. Null if nothing closes.
+TopoDS_Shape solidsFromShells(const std::vector<TopoDS_Shell>& shells, std::string& why)
 {
-  freeEdges = 0;
-  if (faces.empty()) {
-    why = "no faces";
-    return {};
-  }
-  BRepBuilderAPI_Sewing sewing(tolerance);
-  for (const auto& f : faces) sewing.Add(f);
-  // Deliberately not given the export's time budget: sewing a mesh is the
-  // fallback the budget falls back *to*, so cutting it short would leave
-  // the node with nothing at all.
-  sewing.Perform();
-  const auto sewn = sewing.SewedShape();
-  if (sewn.IsNull()) {
-    why = "sewing produced nothing";
-    return {};
-  }
-  freeEdges = countFreeEdges(sewn);
-  if (freeEdges > 0) {
-    why = std::to_string(freeEdges) + " free edge(s) after sewing " + std::to_string(faces.size()) +
-          " face(s)";
-    return {};
-  }
-
   struct Candidate {
     TopoDS_Shell shell;
     TopoDS_Solid solid;
     double volume;
   };
   std::vector<Candidate> candidates;
-  for (TopExp_Explorer it(sewn, TopAbs_SHELL); it.More(); it.Next()) {
-    auto shell = TopoDS::Shell(it.Current());
+  for (auto shell : shells) {
     BRepBuilderAPI_MakeSolid maker(shell);
     if (!maker.IsDone()) {
       why = "a shell could not be made into a solid";
@@ -279,6 +261,153 @@ TopoDS_Shape solidsFromFaceList(const std::vector<TopoDS_Shape>& faces, double t
   if (solids.empty()) return {};
   auto result = solids.size() == 1 ? solids.front() : OcctBoolean::makeCompound(solids);
   return OcctBoolean::unify(result, 3);
+}
+
+// Builds shells straight from the mesh's own topology.
+//
+// The mesh already says which faces share which vertices, so the edges can
+// be shared by index. Sewing throws that away and rediscovers it by
+// comparing edges geometrically, which is what it is for when the faces
+// come from unrelated sources, and which dominates a large mesh: two
+// corpus models spent their whole export inside
+// BRepBuilderAPI_Sewing::FindCandidates.
+//
+// Returns nothing when the mesh is not a clean closed manifold -- an edge
+// used by other than exactly two faces in opposite directions, a repeated
+// or degenerate vertex, a wire or face OpenCASCADE will not build. The
+// caller then sews, which copes with meshes this cannot.
+std::vector<TopoDS_Shell> shellsFromIndexedMesh(const OcctBridge::MeshData& mesh, std::string& why)
+{
+  if (mesh.faces.empty() || mesh.vertices.empty()) return {};
+  if (mesh.vertices.size() > (1ULL << 31)) return {};
+
+  struct Use {
+    TopoDS_Edge edge;
+    int forward = 0;
+    int reverse = 0;
+    size_t face = 0;
+  };
+  const auto key = [](size_t a, size_t b) {
+    return a < b ? (static_cast<uint64_t>(a) << 32) | b : (static_cast<uint64_t>(b) << 32) | a;
+  };
+
+  std::vector<TopoDS_Vertex> vertices(mesh.vertices.size());
+  std::unordered_map<uint64_t, Use> edges;
+  edges.reserve(mesh.faces.size() * 2);
+
+  try {
+    for (size_t f = 0; f < mesh.faces.size(); ++f) {
+      const auto& face = mesh.faces[f];
+      if (face.size() < 3) return {};
+      for (size_t i = 0; i < face.size(); ++i) {
+        const size_t a = face[i];
+        const size_t b = face[(i + 1) % face.size()];
+        if (a == b || a >= mesh.vertices.size() || b >= mesh.vertices.size()) return {};
+        auto& use = edges[key(a, b)];
+        if (use.edge.IsNull()) {
+          for (const size_t v : {std::min(a, b), std::max(a, b)}) {
+            if (vertices[v].IsNull()) {
+              const auto& p = mesh.vertices[v];
+              vertices[v] = BRepBuilderAPI_MakeVertex(gp_Pnt(p[0], p[1], p[2])).Vertex();
+            }
+          }
+          BRepBuilderAPI_MakeEdge maker(vertices[std::min(a, b)], vertices[std::max(a, b)]);
+          if (!maker.IsDone()) return {};
+          use.edge = maker.Edge();
+          use.face = f;
+        }
+        ++(a < b ? use.forward : use.reverse);
+      }
+    }
+
+    // Every edge of a closed, consistently wound surface is walked once in
+    // each direction. Anything else is a hole, a seam or a flipped face,
+    // and not something to guess at.
+    for (const auto& [ignored, use] : edges) {
+      if (use.forward != 1 || use.reverse != 1) {
+        why = "the mesh is not a closed manifold";
+        return {};
+      }
+    }
+
+    // Faces that share an edge belong to the same shell.
+    std::vector<size_t> parent(mesh.faces.size());
+    for (size_t i = 0; i < parent.size(); ++i) parent[i] = i;
+    const std::function<size_t(size_t)> root = [&](size_t i) {
+      while (parent[i] != i) i = parent[i] = parent[parent[i]];
+      return i;
+    };
+
+    std::vector<TopoDS_Face> built(mesh.faces.size());
+    for (size_t f = 0; f < mesh.faces.size(); ++f) {
+      const auto& face = mesh.faces[f];
+      BRepBuilderAPI_MakeWire wire;
+      for (size_t i = 0; i < face.size(); ++i) {
+        const size_t a = face[i];
+        const size_t b = face[(i + 1) % face.size()];
+        auto& use = edges[key(a, b)];
+        wire.Add(TopoDS::Edge(a < b ? use.edge : use.edge.Reversed()));
+        if (!wire.IsDone()) return {};
+        const size_t other = root(use.face);
+        if (other != root(f)) parent[other] = root(f);
+      }
+      BRepBuilderAPI_MakeFace maker(wire.Wire(), true);
+      if (!maker.IsDone()) return {};
+      built[f] = maker.Face();
+    }
+
+    std::unordered_map<size_t, TopoDS_Shell> shells;
+    BRep_Builder builder;
+    for (size_t f = 0; f < built.size(); ++f) {
+      auto& shell = shells[root(f)];
+      if (shell.IsNull()) builder.MakeShell(shell);
+      builder.Add(shell, built[f]);
+    }
+    std::vector<TopoDS_Shell> out;
+    out.reserve(shells.size());
+    for (auto& [ignored, shell] : shells) {
+      shell.Closed(BRep_Tool::IsClosed(shell));
+      out.push_back(shell);
+    }
+    return out;
+  } catch (const Standard_Failure&) {
+    return {};
+  }
+}
+
+// Sew faces into shells, then solids. Sewing matches edges by comparing
+// them geometrically, which is what it is for when the faces come from
+// unrelated sources, and what makes it slow on a large mesh.
+TopoDS_Shape solidsFromFaceList(const std::vector<TopoDS_Shape>& faces, double tolerance, int& freeEdges,
+                                std::string& why)
+{
+  freeEdges = 0;
+  if (faces.empty()) {
+    why = "no faces";
+    return {};
+  }
+  BRepBuilderAPI_Sewing sewing(tolerance);
+  for (const auto& f : faces) sewing.Add(f);
+  // Deliberately not given the export's time budget: sewing a mesh is the
+  // fallback the budget falls back *to*, so cutting it short would leave
+  // the node with nothing at all.
+  sewing.Perform();
+  const auto sewn = sewing.SewedShape();
+  if (sewn.IsNull()) {
+    why = "sewing produced nothing";
+    return {};
+  }
+  freeEdges = countFreeEdges(sewn);
+  if (freeEdges > 0) {
+    why = std::to_string(freeEdges) + " free edge(s) after sewing " + std::to_string(faces.size()) +
+          " face(s)";
+    return {};
+  }
+  std::vector<TopoDS_Shell> shells;
+  for (TopExp_Explorer it(sewn, TopAbs_SHELL); it.More(); it.Next()) {
+    shells.push_back(TopoDS::Shell(it.Current()));
+  }
+  return solidsFromShells(shells, why);
 }
 
 }  // namespace
@@ -366,6 +495,16 @@ TopoDS_Shape solidsFromMesh(const OcctBridge::MeshData& input, std::string& why)
     if (!face.IsNull()) faces.push_back(face);
     else ++dropped;
   }
+  // The indexed build is exact and cheap when the mesh is clean; sewing is
+  // the general case and is what handles everything else.
+  std::string indexedWhy;
+  const auto shells = shellsFromIndexedMesh(mesh, indexedWhy);
+  if (!shells.empty()) {
+    std::string shellWhy;
+    auto direct = solidsFromShells(shells, shellWhy);
+    if (!direct.IsNull()) return direct;
+  }
+
   int freeEdges = 0;
   auto result = solidsFromFaceList(faces, 1e-6 * scale, freeEdges, why);
   if (result.IsNull() && dropped > 0) {
