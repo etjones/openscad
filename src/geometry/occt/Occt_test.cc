@@ -364,3 +364,18 @@ TEST_CASE("OcctBoolean::splitClosedFaces removes seams without moving the shape"
   // 2D geometry is left alone.
   REQUIRE(OcctBoolean::splitClosedFaces(ball, 2).IsSame(ball));
 }
+
+TEST_CASE("OcctHull::hullOfTessellation approximates the hull at the fineness it is given", "[occt]")
+{
+  // The hull of one sphere is the sphere; tessellated at 60 segments the
+  // inscribed polyhedron sits a few tenths of a percent under it.
+  const auto ball = sphere(0, 0, 0, 5);
+  const auto coarse = OcctHull::hullOfTessellation({ball}, 60);
+  REQUIRE_FALSE(coarse.IsNull());
+  REQUIRE_THAT(volume(coarse), WithinRel(volume(ball), 5e-3));
+  REQUIRE(volume(coarse) < volume(ball));
+  // Finer tessellation, closer hull; the fineness is the caller's, not the shape's.
+  const auto fine = OcctHull::hullOfTessellation({ball}, 180);
+  REQUIRE(volume(fine) > volume(coarse));
+  REQUIRE(OcctHull::hullOfTessellation({}, 60).IsNull());
+}

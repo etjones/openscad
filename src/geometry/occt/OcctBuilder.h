@@ -7,6 +7,7 @@
 
 #include "core/node.h"
 #include "geometry/linalg.h"
+#include "geometry/occt/OcctBridge.h"
 #include "geometry/occt/OcctGeometry.h"
 
 class Tree;
@@ -79,6 +80,8 @@ private:
 
   // Render the subtree with OpenSCAD's own evaluator and sew the mesh.
   OcctGeometry meshFallback(const AbstractNode& node, const Color4f& color, const std::string& why);
+  OcctGeometry meshFallback(const AbstractNode& node, const Color4f& color, const std::string& why,
+                            const OcctBridge::Rendered& rendered);
 
   // The union of a node's 2D children as one Polygon2d-derived compound of faces.
   OcctGeometry flatChildren(const AbstractNode& node, const Color4f& inherited, unsigned int wantDim);

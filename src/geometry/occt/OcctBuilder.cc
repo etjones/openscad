@@ -343,6 +343,17 @@ TopoDS_Shape OcctBuilder::checkedCommon(const std::vector<TopoDS_Shape>& args,
 
 namespace {
 
+// A hull no closed form covers is normally OpenSCAD's own render of it,
+// so the region matches the STL exactly. Past this many triangles that
+// render is instead replaced by the hull of the children tessellated at
+// HULL_FALLBACK_SEGMENTS: OpenCASCADE's booleans are badly superlinear in
+// facet count, and a hull rendered at $fn=180 carried 17k to 33k triangles
+// that 2k describe to 0.1% of its volume, and never finished. Below the
+// ceiling the model's fineness is honoured, since a coarser model rendered
+// coarser is also cheaper; above it the exporter's fineness wins.
+constexpr size_t HULL_MESH_BUDGET = 10000;
+constexpr int HULL_FALLBACK_SEGMENTS = 60;
+
 // Restores the builder's "unverified" flag on scope exit, so a node that
 // falls back to a mesh does not taint its ancestors.
 struct VerificationScope {
@@ -1012,6 +1023,29 @@ OcctGeometry OcctBuilder::hullOrMinkowski(const CgalAdvNode& node, const Color4f
     if (dim == 3) result = orientedOutward(result);
     return single(result, dim, color);
   }
+  if (isHull && dim == 3) {
+    if (!evaluator_) evaluator_ = OcctBridge::makeEvaluator(tree_);
+    const auto rendered = OcctBridge::render(*evaluator_, node);
+    size_t triangles = 0;
+    for (const auto& mesh : rendered.meshes) triangles += mesh.faces.size();
+    if (triangles <= HULL_MESH_BUDGET) {
+      return meshFallback(node, inherited, "children fit none of the closed-form hull cases", rendered);
+    }
+    result = OcctHull::hullOfTessellation(OcctHull::components(shapes, dim), HULL_FALLBACK_SEGMENTS);
+    if (!result.IsNull()) {
+      const std::string note =
+        node.name() +
+        "(): children fit none of the closed-form hull cases; built as the hull of "
+        "the children tessellated at " +
+        std::to_string(HULL_FALLBACK_SEGMENTS) + " segments. Surfaces in this region are polyhedral.";
+      fallbacks_.push_back(note);
+      warn(node, "STEP export: " + note);
+      return single(orientedOutward(result), dim, color);
+    }
+    // The tessellation could not be built; the render already in hand is
+    // still the right fallback, whatever its size.
+    return meshFallback(node, inherited, "children fit none of the closed-form hull cases", rendered);
+  }
   return meshFallback(node, inherited,
                       isHull ? "children fit none of the closed-form hull cases"
                              : "no operand is a sphere or circle at the origin");
@@ -1023,7 +1057,12 @@ OcctGeometry OcctBuilder::meshFallback(const AbstractNode& node, const Color4f& 
                                        const std::string& why)
 {
   if (!evaluator_) evaluator_ = OcctBridge::makeEvaluator(tree_);
-  const auto rendered = OcctBridge::render(*evaluator_, node);
+  return meshFallback(node, color, why, OcctBridge::render(*evaluator_, node));
+}
+
+OcctGeometry OcctBuilder::meshFallback(const AbstractNode& node, const Color4f& color,
+                                       const std::string& why, const OcctBridge::Rendered& rendered)
+{
   if (rendered.dim == 0) return {};
 
   OcctGeometry result;

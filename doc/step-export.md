@@ -60,6 +60,32 @@ the same model, because an exact cylinder is larger than the prism
 inscribed in it. On a corpus sample this accounted for every difference
 between 2% and 6% that was not a defect.
 
+## Fineness of fallbacks
+
+Above the facet threshold, `$fn` tells the exact tier nothing: 60 and 180
+both produce an exact sphere. But a region that falls back to a mesh is
+rendered by OpenSCAD's own evaluator, which honours the model's `$fn` to
+the letter. A hull rendered at `$fn=180` arrived as 17,000 to 33,000
+triangles, each of which OpenCASCADE then treats as a face with its own
+surface and edges, and its booleans are badly superlinear in that count:
+one such model took 5 seconds at `$fn=60`, 22 at 120, and never finished
+at 180. Two thousand triangles describe the same hull to 0.1% of its
+volume.
+
+The rule adopted: a hull no closed form covers is OpenSCAD's own render
+when that render is at most 10,000 triangles, so the region matches the
+STL exactly and a coarse model stays cheap. Above that, the exporter
+builds the hull itself from the exact children tessellated at 60 segments
+per turn, and says so in the warning. Fineness in a fallback is a cost the
+exporter owns, not an intent the model expresses.
+
+Two things were tried and rejected on measurement. Simplifying the
+rendered mesh to a tolerance with Manifold kept three times the faces of
+a 60-segment render for more volume error. Re-tessellating every hull
+regardless of size made a model with no `$fn` at all ten times denser
+than its own render and pushed it from 9 seconds to a timeout, which is
+why the rule is gated on the render's size rather than applied always.
+
 ## Colour
 
 The requirement was that a STEP file look like the preview. `color()`
@@ -204,9 +230,9 @@ OpenSCAD renders from the same source.
 
 ## Known limitations
 
-- Three corpus models out of 500 do not finish within three minutes. Two
-  are slow inside OpenCASCADE's sewing in the mesh fallback, which the
-  time budget deliberately does not interrupt.
+- One corpus model out of 500 is known to fail intermittently: it
+  segfaults about one run in eight inside CGAL, and OpenSCAD's own STL
+  export of it does the same.
 - A thread built from tilted half-tori exports as a mesh: the cut that
   flattens its base fails and the region degrades. The geometry has an
   exact form; OpenCASCADE will not produce it.

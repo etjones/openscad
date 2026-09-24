@@ -2,6 +2,7 @@
 
 #include <BRepAdaptor_Curve.hxx>
 #include <BRepAdaptor_Surface.hxx>
+#include <BRepBuilderAPI_Copy.hxx>
 #include <BRepBuilderAPI_MakeEdge.hxx>
 #include <BRepBuilderAPI_MakeFace.hxx>
 #include <BRepBuilderAPI_MakePolygon.hxx>
@@ -10,7 +11,12 @@
 #include <BRepBuilderAPI_Sewing.hxx>
 #include <BRepBuilderAPI_Transform.hxx>
 #include <BRepCheck_Analyzer.hxx>
+#include <BRepBndLib.hxx>
 #include <BRepGProp.hxx>
+#include <BRepMesh_IncrementalMesh.hxx>
+#include <Bnd_Box.hxx>
+#include <Poly_Triangulation.hxx>
+#include <TopLoc_Location.hxx>
 #include <BRepOffsetAPI_MakeOffset.hxx>
 #include <BRepOffsetAPI_MakeOffsetShape.hxx>
 #include <BRepPrimAPI_MakeCone.hxx>
@@ -739,6 +745,51 @@ std::vector<TopoDS_Shape> components(const std::vector<TopoDS_Shape>& children, 
     for (const auto& piece : OcctBoolean::piecesOf(child, dim)) out.push_back(piece);
   }
   return out;
+}
+
+TopoDS_Shape hullOfTessellation(const std::vector<TopoDS_Shape>& comps, int segments)
+{
+  if (comps.empty() || segments < 3) return {};
+  try {
+    Bnd_Box box;
+    for (const auto& c : comps) BRepBndLib::Add(c, box);
+    if (box.IsVoid()) return {};
+    double x0, y0, z0, x1, y1, z1;
+    box.Get(x0, y0, z0, x1, y1, z1);
+    const double diag = std::sqrt((x1 - x0) * (x1 - x0) + (y1 - y0) * (y1 - y0) + (z1 - z0) * (z1 - z0));
+    // The angle sets the segment count on every curve; the length only
+    // keeps a huge flat face from being split further than it needs.
+    const double angular = 2.0 * M_PI / segments;
+    const double linear = std::max(diag * 1e-3, 1e-6);
+    std::vector<P3> points;
+    for (const auto& c : comps) {
+      // Meshing writes the triangulation into the shape, and a shape that
+      // already carries one is not re-meshed, so mesh a copy: the caller's
+      // shape stays untouched and the fineness asked for is the fineness
+      // delivered.
+      const TopoDS_Shape copy = BRepBuilderAPI_Copy(c).Shape();
+      BRepMesh_IncrementalMesh mesher(copy, linear, false, angular, false);
+      for (TopExp_Explorer it(copy, TopAbs_FACE); it.More(); it.Next()) {
+        TopLoc_Location loc;
+        const auto tri = BRep_Tool::Triangulation(TopoDS::Face(it.Current()), loc);
+        if (tri.IsNull()) continue;
+        const gp_Trsf trsf = loc.Transformation();
+        for (int i = 1; i <= tri->NbNodes(); ++i) {
+          const gp_Pnt p = tri->Node(i).Transformed(trsf);
+          points.push_back({p.X(), p.Y(), p.Z()});
+        }
+      }
+    }
+    // Faces share their boundary nodes, so most points arrive several
+    // times; and the hull's output depends on its input order, so sort for
+    // a result that is the same from one run to the next.
+    std::sort(points.begin(), points.end());
+    points.erase(std::unique(points.begin(), points.end()), points.end());
+    if (points.size() < 4) return {};
+    return convexHull3d(points);
+  } catch (const Standard_Failure&) {
+    return {};
+  }
 }
 
 TopoDS_Shape hull(const std::vector<TopoDS_Shape>& comps, unsigned int dim, std::string& rung)

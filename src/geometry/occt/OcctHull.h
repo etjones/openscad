@@ -30,6 +30,16 @@ std::vector<TopoDS_Shape> components(const std::vector<TopoDS_Shape>& children, 
 // - Straight-edged planar children: the 2D convex hull of their vertices.
 TopoDS_Shape hull(const std::vector<TopoDS_Shape>& components, unsigned int dim, std::string& rung);
 
+// The last resort for a 3D hull no closed form covers: tessellate each
+// component at `segments` per full turn, and hull the vertices. This is
+// what OpenSCAD itself does, at a fineness the exporter chooses rather than
+// the model's $fn: above the facet threshold that $fn buys nothing the
+// exact tier honours, while a fallback rendered at $fn=180 carried 17k
+// triangles that 2k describe to 0.1% of the volume, and OpenCASCADE's
+// booleans are badly superlinear in facet count. Polyhedral, so callers
+// must report it as a fallback. Null if nothing could be tessellated.
+TopoDS_Shape hullOfTessellation(const std::vector<TopoDS_Shape>& components, int segments);
+
 // minkowski() of exactly two operands where one is a ball at the origin
 // (a sphere or circle primitive, or a many-vertex polyhedron/polygon whose
 // vertices are equidistant from the origin): an offset of the other.
