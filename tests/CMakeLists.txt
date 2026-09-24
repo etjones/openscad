@@ -1005,7 +1005,7 @@ if(ENABLE_OCCT)
   # comparison runs against 7.8 and newer only.
   if(OpenCASCADE_VERSION VERSION_GREATER_EQUAL 7.8)
     file(GLOB STEP_METRICS_TEST_FILES ${TEST_SCAD_DIR}/step/*.scad)
-    add_cmdline_test(step-metrics            OPENSCAD SUFFIX json FILES ${STEP_METRICS_TEST_FILES} ARGS --export-format step-metrics)
+    add_cmdline_test(step-metrics            OPENSCAD SUFFIX stepmetrics FILES ${STEP_METRICS_TEST_FILES} ARGS --export-format step-metrics)
   else()
     message(STATUS "OpenCASCADE ${OpenCASCADE_VERSION}: step-metrics tests need 7.8 or newer, skipping")
   endif()
