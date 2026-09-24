@@ -9,6 +9,7 @@
 #include <Quantity_Color.hxx>
 #include <cmath>
 #include <map>
+#include <optional>
 #include <random>
 #include <IFSelect_ReturnStatus.hxx>
 #include <Interface_Static.hxx>
@@ -97,12 +98,14 @@ struct Piece {
 
 namespace {
 
-bool writeStep(const OcctGeometry& geometry, const fs::path& outputPath, const std::string& title)
+bool writeStep(const OcctGeometry& geometry, const fs::path& outputPath, const std::string& title,
+               bool splitSeams)
 {
   std::vector<Piece> pieces;
   for (const auto& body : geometry.bodies) {
     for (const auto& piece : OcctBoolean::piecesOf(body.shape, geometry.dim)) {
-      pieces.push_back({OcctBoolean::splitClosedFaces(piece, geometry.dim), body.color});
+      pieces.push_back(
+        {splitSeams ? OcctBoolean::splitClosedFaces(piece, geometry.dim) : piece, body.color});
     }
   }
   if (pieces.empty()) {
@@ -279,32 +282,76 @@ nlohmann::json measureFile(const fs::path& path, unsigned int dim)
 // anything a reader would see as missing.
 constexpr double READBACK_RTOL = 5e-3;
 
-// Reads the file just written and warns if it does not hold what it was
-// given. The failure this exists for is silent: an ellipsoid fused to a
-// cylinder wrote a file whose ellipsoid came back with no volume at all,
-// and nothing in the export path could tell.
-void verifyWritten(const fs::path& path, const OcctGeometry& geometry)
+double builtExtent(const OcctGeometry& geometry)
 {
   std::vector<TopoDS_Shape> shapes;
   for (const auto& body : geometry.bodies) shapes.push_back(body.shape);
-  const double built = OcctBoolean::extent(OcctBoolean::makeCompound(shapes), geometry.dim);
-  nlohmann::json readBack;
+  return OcctBoolean::extent(OcctBoolean::makeCompound(shapes), geometry.dim);
+}
+
+// Reads a written file back; the relative distance of its extent from
+// `built`, or nullopt when it could not be read at all.
+std::optional<double> readBackDrift(const fs::path& path, unsigned int dim, double built,
+                                    nlohmann::json& readBack)
+{
   try {
-    readBack = measureFile(path, geometry.dim);
-  } catch (const Standard_Failure& e) {
-    OcctBridge::warn(std::string("STEP export: the file could not be read back to check it: ") +
-                     e.GetMessageString());
-    return;
+    readBack = measureFile(path, dim);
+  } catch (const Standard_Failure&) {
+    return std::nullopt;
   }
-  if (readBack.is_null() || !readBack.contains("extent")) {
-    OcctBridge::warn("STEP export: the file could not be read back to check it");
-    return;
-  }
+  if (readBack.is_null() || !readBack.contains("extent")) return std::nullopt;
   const double after = readBack["extent"].get<double>();
-  if (std::fabs(after - built) <= READBACK_RTOL * std::max(std::fabs(built), 1e-9)) return;
-  OcctBridge::warn("STEP export: the file reads back as " + std::to_string(after) + " against the " +
+  return std::fabs(after - built) / std::max(std::fabs(built), 1e-9);
+}
+
+// Writes the geometry, reads the file back, and if the file does not hold
+// what it was given, writes it the other way and checks again.
+//
+// The failure this exists for is silent, and it cuts both ways. Faces
+// that wrap a periodic surface are normally split at their seam before
+// writing, because an ellipsoid fused to a cylinder otherwise wrote a file
+// whose ellipsoid came back with no volume at all. But an ellipsoid
+// trimmed exactly at its equator by a ring of the same radius did the
+// opposite: split, its file read back 55% too large, and unsplit it read
+// back exactly. No in-memory guard can see either, since the damage only
+// exists in the file. So the file itself is the test: whichever way reads
+// back faithfully is kept, and only if neither does is the user told.
+// The common case costs one read of the file just written; the rare one
+// costs a second write and read.
+nlohmann::json writeVerified(const OcctGeometry& geometry, const fs::path& path,
+                             const std::string& title)
+{
+  const double built = builtExtent(geometry);
+  nlohmann::json split, plain;
+  if (!writeStep(geometry, path, title, true)) return {};
+  const auto splitDrift = readBackDrift(path, geometry.dim, built, split);
+  if (splitDrift && *splitDrift <= READBACK_RTOL) return split;
+
+  if (!writeStep(geometry, path, title, false)) return split;
+  const auto plainDrift = readBackDrift(path, geometry.dim, built, plain);
+  if (plainDrift && *plainDrift <= READBACK_RTOL) {
+    OcctBridge::warn(
+      "STEP export: the file read back " +
+      (splitDrift ? std::to_string(static_cast<int>(*splitDrift * 100 + 0.5)) + "% off" : "unreadable") +
+      " with its seams split, so it was written with them kept, which reads back "
+      "exactly");
+    return plain;
+  }
+
+  // Neither is right; keep the closer, and say so.
+  const double s = splitDrift.value_or(1e9), q = plainDrift.value_or(1e9);
+  if (s < q) writeStep(geometry, path, title, true);
+  const auto& kept = s < q ? split : plain;
+  if (kept.is_null() || !kept.contains("extent")) {
+    OcctBridge::warn("STEP export: the file could not be read back to check it");
+    return kept;
+  }
+  OcctBridge::warn("STEP export: the file reads back as " +
+                   std::to_string(kept["extent"].get<double>()) + " against the " +
                    std::to_string(built) +
-                   " that was built; some geometry did not survive being written");
+                   " that was built, with its seams split or kept; some geometry did not survive "
+                   "being written");
+  return kept;
 }
 
 }  // namespace
@@ -339,7 +386,7 @@ std::string step_metrics_json(const Tree& tree, const AbstractNode& root, int fa
       fs::temp_directory_path() / ("openscad-step-metrics-" + std::to_string(rd()) + ".step");
     nlohmann::json readBack;
     try {
-      if (writeStep(geometry, path, "metrics")) readBack = measureFile(path, geometry.dim);
+      readBack = writeVerified(geometry, path, "metrics");
     } catch (const Standard_Failure& e) {
       OcctBridge::error(std::string("STEP metrics round trip failed: ") + e.GetMessageString());
     }
@@ -375,7 +422,6 @@ bool export_step_native(const Tree& tree, const AbstractNode& root, const fs::pa
     return false;
   }
 
-  if (!writeStep(geometry, outputPath, title)) return false;
-  verifyWritten(outputPath, geometry);
-  return true;
+  const auto readBack = writeVerified(geometry, outputPath, title);
+  return !readBack.is_null();
 }
