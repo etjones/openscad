@@ -155,9 +155,15 @@ is 9e-16 before and after. It is rejected if it moves the extent.
 ## Checking the written file
 
 Every export reads its own file back and compares it with the geometry it
-was given, warning if they differ by more than half a percent. This is the
-check that would have caught the seam defect above without a user
-reporting it.
+was given. If the file is off by more than half a percent it is written
+again with seams kept rather than split, and read back again; whichever
+version is faithful is kept, and only if neither is does the user get a
+warning. That recovery exists because seam splitting cuts both ways: it
+fixed the ellipsoid above, and broke an ellipsoid trimmed exactly at its
+equator, whose split file read back 55% too large. No in-memory guard
+can see either, since the damage exists only in the file, so the file is
+the test. On a 500-model corpus the check flags two files, one of them
+that one.
 
 It is not free. Over a 500-model corpus it added 14% to total export time,
 and on the largest files it costs tens of seconds, because reading a STEP
