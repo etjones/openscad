@@ -214,11 +214,13 @@ code runs.
 
 The exporter is covered inside the existing harness, not beside it:
 
-- 41 regression models under `tests/data/scad/step/`, compared through
+- 42 regression models under `tests/data/scad/step/`, compared through
   `--export-format step-metrics`, a JSON summary of extent, bounding box,
   centroid, face and solid counts, volume per colour, and the same again
   after a write and read-back. Values are rounded so they are stable
-  across platforms, and compared exactly.
+  across platforms. Every measurement is compared exactly; the face count
+  is held to 1%, because a mesh-derived solid's count is not dependable to
+  the unit while its volume is.
 - 12 Catch2 unit tests tagged `[occt]` over the boolean invariants, the
   mesh conversion and the closed-form hulls.
 
