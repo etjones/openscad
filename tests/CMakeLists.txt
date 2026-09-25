@@ -1006,6 +1006,8 @@ if(ENABLE_OCCT)
   if(OpenCASCADE_VERSION VERSION_GREATER_EQUAL 7.8)
     file(GLOB STEP_METRICS_TEST_FILES ${TEST_SCAD_DIR}/step/*.scad)
     add_cmdline_test(step-metrics            OPENSCAD SUFFIX stepmetrics FILES ${STEP_METRICS_TEST_FILES} ARGS --export-format step-metrics)
+    # Colour rides on each body, so a file written without colour groups must read back the same colours.
+    add_cmdline_test(step-metrics-flat       OPENSCAD SUFFIX stepmetrics FILES ${TEST_SCAD_DIR}/step/dual_color.scad ${TEST_SCAD_DIR}/step/colors.scad ARGS --export-format step-metrics -O export-step/group-by-color=false)
   else()
     message(STATUS "OpenCASCADE ${OpenCASCADE_VERSION}: step-metrics tests need 7.8 or newer, skipping")
   endif()

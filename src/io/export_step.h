@@ -48,6 +48,14 @@ class AbstractNode;
 // STEP export through the built-in OpenCASCADE evaluator: the node tree
 // is rebuilt as B-rep geometry and written as an XDE document, one
 // product per body, colored and grouped by color.
+// `groupByColor` puts every body of one colour under its own node of the
+// file's assembly tree, so a region can be selected or hidden as a unit in
+// consumers that ignore layers; off, bodies sit directly under the root
+// and carry their colour only as a style, which is what select-by-colour
+// uses anyway. The tree is the one grouping every consumer honours, and
+// spending it on colour is a default, not a design: see the discussion in
+// doc/step-export.md.
+//
 // `timeBudget` is a wall-clock limit in seconds for the B-rep work, or 0
 // for none. Past it OpenCASCADE abandons whatever it is doing and the
 // region falls back to a mesh, so a pathological model still produces a
@@ -55,12 +63,13 @@ class AbstractNode;
 // geometry whatever the machine.
 bool export_step_native(const Tree& tree, const AbstractNode& root,
                         const std::filesystem::path& outputPath, int facetThreshold, int timeBudget,
-                        const std::string& title);
+                        bool groupByColor, const std::string& title);
 
 // Measurements of what the built-in evaluator produces, as JSON, for
 // regression tests: volume (area for 2D), bounding box, centroid, face
 // and solid counts, volume per color, and the same again after writing
 // a STEP file and reading it back. Values are rounded so the output is
 // stable across platforms.
-std::string step_metrics_json(const Tree& tree, const AbstractNode& root, int facetThreshold);
+std::string step_metrics_json(const Tree& tree, const AbstractNode& root, int facetThreshold,
+                              bool groupByColor);
 #endif

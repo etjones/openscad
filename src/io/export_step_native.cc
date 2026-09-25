@@ -99,7 +99,7 @@ struct Piece {
 namespace {
 
 bool writeStep(const OcctGeometry& geometry, const fs::path& outputPath, const std::string& title,
-               bool splitSeams)
+               bool splitSeams, bool groupByColor)
 {
   std::vector<Piece> pieces;
   for (const auto& body : geometry.bodies) {
@@ -123,7 +123,7 @@ bool writeStep(const OcctGeometry& geometry, const fs::path& outputPath, const s
   } else {
     auto rootLabel = shapes->NewShape();
     setName(rootLabel, title.empty() ? "model" : title);
-    if (geometry.hasColor()) {
+    if (groupByColor && geometry.hasColor()) {
       // One group per color, in order of first appearance, so every region
       // of a color can be selected or hidden together.
       std::vector<std::pair<Color4f, TDF_Label>> groups;
@@ -319,15 +319,15 @@ std::optional<double> readBackDrift(const fs::path& path, unsigned int dim, doub
 // The common case costs one read of the file just written; the rare one
 // costs a second write and read.
 nlohmann::json writeVerified(const OcctGeometry& geometry, const fs::path& path,
-                             const std::string& title)
+                             const std::string& title, bool groupByColor)
 {
   const double built = builtExtent(geometry);
   nlohmann::json split, plain;
-  if (!writeStep(geometry, path, title, true)) return {};
+  if (!writeStep(geometry, path, title, true, groupByColor)) return {};
   const auto splitDrift = readBackDrift(path, geometry.dim, built, split);
   if (splitDrift && *splitDrift <= READBACK_RTOL) return split;
 
-  if (!writeStep(geometry, path, title, false)) return split;
+  if (!writeStep(geometry, path, title, false, groupByColor)) return split;
   const auto plainDrift = readBackDrift(path, geometry.dim, built, plain);
   if (plainDrift && *plainDrift <= READBACK_RTOL) {
     OcctBridge::warn(
@@ -340,7 +340,7 @@ nlohmann::json writeVerified(const OcctGeometry& geometry, const fs::path& path,
 
   // Neither is right; keep the closer, and say so.
   const double s = splitDrift.value_or(1e9), q = plainDrift.value_or(1e9);
-  if (s < q) writeStep(geometry, path, title, true);
+  if (s < q) writeStep(geometry, path, title, true, groupByColor);
   const auto& kept = s < q ? split : plain;
   if (kept.is_null() || !kept.contains("extent")) {
     OcctBridge::warn("STEP export: the file could not be read back to check it");
@@ -356,7 +356,8 @@ nlohmann::json writeVerified(const OcctGeometry& geometry, const fs::path& path,
 
 }  // namespace
 
-std::string step_metrics_json(const Tree& tree, const AbstractNode& root, int facetThreshold)
+std::string step_metrics_json(const Tree& tree, const AbstractNode& root, int facetThreshold,
+                              bool groupByColor)
 {
   quietOcct();
   OcctBuilder builder(tree, facetThreshold);
@@ -386,7 +387,7 @@ std::string step_metrics_json(const Tree& tree, const AbstractNode& root, int fa
       fs::temp_directory_path() / ("openscad-step-metrics-" + std::to_string(rd()) + ".step");
     nlohmann::json readBack;
     try {
-      readBack = writeVerified(geometry, path, "metrics");
+      readBack = writeVerified(geometry, path, "metrics", groupByColor);
     } catch (const Standard_Failure& e) {
       OcctBridge::error(std::string("STEP metrics round trip failed: ") + e.GetMessageString());
     }
@@ -398,7 +399,7 @@ std::string step_metrics_json(const Tree& tree, const AbstractNode& root, int fa
 }
 
 bool export_step_native(const Tree& tree, const AbstractNode& root, const fs::path& outputPath,
-                        int facetThreshold, int timeBudget, const std::string& title)
+                        int facetThreshold, int timeBudget, bool groupByColor, const std::string& title)
 {
   quietOcct();
   OcctProgress::setBudget(timeBudget);
@@ -422,6 +423,6 @@ bool export_step_native(const Tree& tree, const AbstractNode& root, const fs::pa
     return false;
   }
 
-  const auto readBack = writeVerified(geometry, outputPath, title);
+  const auto readBack = writeVerified(geometry, outputPath, title, groupByColor);
   return !readBack.is_null();
 }

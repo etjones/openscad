@@ -2132,6 +2132,19 @@
                   </widget>
                  </item>
                  <item>
+                  <widget class="QCheckBox" name="checkBoxStepExportGroupByColor">
+                   <property name="text">
+                    <string>Group bodies by color</string>
+                   </property>
+                   <property name="toolTip">
+                    <string>Put every body of one color under its own node of the file's assembly tree, so a region can be selected or hidden as a unit. Off, bodies sit directly under the root and carry their color only as a style, which select-by-color uses anyway.</string>
+                   </property>
+                   <property name="checked">
+                    <bool>true</bool>
+                   </property>
+                  </widget>
+                 </item>
+                 <item>
                   <spacer name="horizontalSpacerStepExport">
                    <property name="orientation">
                     <enum>Qt::Horizontal</enum>

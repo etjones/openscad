@@ -99,6 +99,19 @@ a cutter never paints what it cuts. Where a colour-preserving boolean
 cannot be done, the affected bodies merge as uncoloured and the loss is
 local to that collision rather than to the model.
 
+The grouping deserves its own word, because it spends the file's assembly
+tree on colour, and by STEP's conventions that tree means product
+structure. We do it anyway for two measured reasons: the tree is the one
+grouping every consumer honours, since layers are ignored by FreeCAD,
+Fusion and slicers, and colour is the one piece of the author's intent
+that survives a boolean, where a top-level union fuses any structure
+into one solid. Each body also carries its colour as a style, which is
+what select-by-colour uses, so the grouping is a convenience on top of
+the requirement rather than the requirement itself. It is therefore a
+setting, `export-step/group-by-color`, on by default; off, bodies sit
+directly under the root and read back with the same colours. An
+uncoloured model never gets groups either way.
+
 ## Trusting OpenCASCADE
 
 OpenCASCADE occasionally returns a valid, self-consistent solid that is
@@ -257,3 +270,6 @@ OpenSCAD renders from the same source.
 3. Should an unverifiable boolean fall back to a mesh, as a cut does now,
    or should it fail the export outright and say so?
 4. Does the colour model match what you would want a STEP consumer to see?
+5. Grouping bodies by colour spends the assembly tree on an attribute.
+   It is the grouping consumers honour and the intent that survives
+   booleans, so it defaults on; should it?

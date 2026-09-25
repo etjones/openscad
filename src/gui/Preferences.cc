@@ -1210,6 +1210,12 @@ void Preferences::on_spinBoxStepExportTimeBudget_valueChanged(int val)
   writeSettings();
 }
 
+void Preferences::on_checkBoxStepExportGroupByColor_toggled(bool val)
+{
+  Settings::SettingsExportStep::exportStepGroupByColor.setValue(val);
+  writeSettings();
+}
+
 void Preferences::on_lineEditStepExportCommand_editingFinished()
 {
   Settings::SettingsExportStep::exportStepCommand.setValue(
@@ -2059,6 +2065,8 @@ void Preferences::updateGUI()
   initUpdateCheckBox(this->checkBoxEnableBraceMatching, Settings::Settings::enableBraceMatching);
   initUpdateCheckBox(this->checkBoxEnableNumberScrollWheel, Settings::Settings::enableNumberScrollWheel);
   initUpdateCheckBox(this->checkBoxShowWarningsIn3dView, Settings::Settings::showWarningsIn3dView);
+  initUpdateCheckBox(this->checkBoxStepExportGroupByColor,
+                     Settings::SettingsExportStep::exportStepGroupByColor);
   initUpdateCheckBox(this->checkBoxMouseCentricZoom, Settings::Settings::mouseCentricZoom);
   initUpdateCheckBox(this->checkBoxEnableLineNumbers, Settings::Settings::enableLineNumbers);
 

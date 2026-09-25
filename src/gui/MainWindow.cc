@@ -2667,6 +2667,7 @@ void MainWindow::actionExportFileFormat(int fmt)
       exported = export_step_native(this->tree, *this->rootNode, outputPath,
                                     Settings::SettingsExportStep::exportStepFacetThreshold.value(),
                                     Settings::SettingsExportStep::exportStepTimeBudget.value(),
+                                    Settings::SettingsExportStep::exportStepGroupByColor.value(),
                                     sourcePath.filename().string());
     } else
 #endif

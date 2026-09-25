@@ -437,6 +437,8 @@ SettingsEntryInt SettingsExportStep::exportStepFacetThreshold(SECTION_EXPORT_STE
                                                               100000, 20);
 SettingsEntryInt SettingsExportStep::exportStepTimeBudget(SECTION_EXPORT_STEP, "time-budget", 0, 86400,
                                                           0);
+SettingsEntryBool SettingsExportStep::exportStepGroupByColor(SECTION_EXPORT_STEP, "group-by-color",
+                                                             true);
 
 SettingsEntryBool SettingsExport3mf::export3mfAlwaysShowDialog(SECTION_EXPORT_3MF, "always-show-dialog",
                                                                true);

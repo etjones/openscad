@@ -575,6 +575,7 @@ public:
   // A $fn below this is honored as polygonal geometry; at or above it the curve is exact.
   static SettingsEntryInt exportStepFacetThreshold;
   static SettingsEntryInt exportStepTimeBudget;
+  static SettingsEntryBool exportStepGroupByColor;
 
   static constexpr std::array<const SettingsEntryBase *, 3> cmdline{
     &exportStepCommand, &exportStepEngine, &exportStepFacetThreshold};

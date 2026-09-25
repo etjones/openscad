@@ -468,8 +468,11 @@ int do_export(const CommandLine& cmd, const RenderVariables& render_variables, F
                                                  Settings::SettingsExportStep::exportStepFacetThreshold);
       const auto budget = set_cmd_line_option(cmd.exportOptions, Settings::SECTION_EXPORT_STEP,
                                               Settings::SettingsExportStep::exportStepTimeBudget);
+      const auto groupByColor =
+        set_cmd_line_option(cmd.exportOptions, Settings::SECTION_EXPORT_STEP,
+                            Settings::SettingsExportStep::exportStepGroupByColor);
       exported = export_step_native(tree, *root_node, fs::path(filename_str), threshold, budget,
-                                    fpath.filename().string());
+                                    groupByColor, fpath.filename().string());
     } else
 #else
     if (engine == "builtin") {
@@ -488,7 +491,9 @@ int do_export(const CommandLine& cmd, const RenderVariables& render_variables, F
 #ifdef ENABLE_OCCT
     const auto threshold = set_cmd_line_option(cmd.exportOptions, Settings::SECTION_EXPORT_STEP,
                                                Settings::SettingsExportStep::exportStepFacetThreshold);
-    const auto metrics = step_metrics_json(tree, *root_node, threshold);
+    const auto groupByColor = set_cmd_line_option(cmd.exportOptions, Settings::SECTION_EXPORT_STEP,
+                                                  Settings::SettingsExportStep::exportStepGroupByColor);
+    const auto metrics = step_metrics_json(tree, *root_node, threshold, groupByColor);
     if (metrics.empty()) return 1;
     with_output(cmd.is_stdout, filename_str, [&metrics](std::ostream& stream) { stream << metrics; });
 #else
