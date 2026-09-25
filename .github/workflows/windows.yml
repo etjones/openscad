@@ -18,8 +18,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        qt: [ qt6 ]
-        msystem: [ UCRT64, CLANG64 ]
+        qt: [ qt5, qt6 ]
+        msystem: [ UCRT64 ]
     runs-on: windows-latest
     name: windows-latest ${{ matrix.qt }} ${{ matrix.msystem }} occt
     defaults:
@@ -53,16 +53,39 @@ jobs:
         with:
           version: '22.1.7'
           build-type: 'release-mingw'
-      # EXPERIMENT: the STEP evaluator on, under both msys2 toolchains, to
-      # learn whether the Extrema_ExtCC segfault is GCC 16's doing.
+      # OpenCASCADE is built from source rather than taken from msys2: the
+      # msys2 7.9.3-3 package segfaults inside Extrema_ExtCC on the first
+      # point classified against a boolean result, while the same sources
+      # built with the same GCC do not (scripts/ci/occt-probe.cpp shows
+      # both). The build is cached on the version and options below.
+      - name: Cache OpenCASCADE
+        id: occt-cache
+        uses: actions/cache@v4
+        with:
+          path: occt-install
+          key: occt-7.9.3-${{ matrix.msystem }}-src-v1
+      - name: Build OpenCASCADE from source
+        if: steps.occt-cache.outputs.cache-hit != 'true'
+        run: |
+          curl -sL -o occt.tar.gz https://github.com/Open-Cascade-SAS/OCCT/archive/refs/tags/V7_9_3.tar.gz
+          tar xzf occt.tar.gz && mv OCCT-7_9_3 occt
+          cmake -S occt -B occt-build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_LIBRARY_TYPE=Shared \
+            -DBUILD_MODULE_Draw=OFF -DBUILD_DOC_Overview=OFF -DUSE_TK=OFF -DUSE_TBB=OFF -DUSE_OPENGL=OFF \
+            -DUSE_XLIB=OFF -DUSE_RAPIDJSON=OFF -DUSE_FFMPEG=OFF -DUSE_D3D=OFF -DINSTALL_DIR_LAYOUT=Unix \
+            -DCMAKE_INSTALL_PREFIX="$PWD/occt-install"
+          cmake --build occt-build -j 4 2>&1 | grep -E "error" | head -20 || true
+          cmake --install occt-build > /dev/null
+          rm -rf occt occt-build occt.tar.gz
       - name: Build OpenSCAD
         run: |
+          export PATH="$PWD/occt-install/bin:$PATH"
           mkdir build && cd build
-          cmake .. -G"Ninja" -DCMAKE_INSTALL_PREFIX=/usr -DCMAKE_BUILD_TYPE=Release -DEXPERIMENTAL=ON -DSNAPSHOT=ON -DENABLE_OCCT=ON -DUSE_QT6=${{ matrix.qt == 'qt6' && 'ON' || 'OFF' }}
+          cmake .. -G"Ninja" -DCMAKE_INSTALL_PREFIX=/usr -DCMAKE_BUILD_TYPE=Release -DEXPERIMENTAL=ON -DSNAPSHOT=ON -DENABLE_OCCT=ON -DCMAKE_PREFIX_PATH="$PWD/../occt-install" -DUSE_QT6=${{ matrix.qt == 'qt6' && 'ON' || 'OFF' }}
           cmake --build . -j4
           cmake --install . --prefix=.
       - name: Run Test Suite
         run: |
+          export PATH="$PWD/occt-install/bin:$PATH"
           cd build
           ctest -j4
       - name: Setup (detached) tmate session if enabled
