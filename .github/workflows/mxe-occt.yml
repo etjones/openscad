@@ -1,6 +1,9 @@
 name: MXE OpenCASCADE (experiment)
 
 on:
+  push:
+    branches:
+      - 'ci/**'
   workflow_dispatch:
 
 jobs:
