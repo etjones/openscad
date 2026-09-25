@@ -1,0 +1,68 @@
+name: OpenCASCADE probe on Windows (experiment)
+
+on:
+  push:
+    branches:
+      - 'ci/**'
+  workflow_dispatch:
+
+env:
+  LIBS: -lTKBO -lTKPrim -lTKTopAlgo -lTKGeomAlgo -lTKBRep -lTKGeomBase -lTKG3d -lTKG2d -lTKMath -lTKernel
+
+jobs:
+  package:
+    name: msys2 package (GCC 16)
+    runs-on: windows-latest
+    defaults: { run: { shell: 'msys2 {0}' } }
+    steps:
+      - uses: actions/checkout@v7
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          update: true
+          pacboy: gcc:p opencascade:p
+      - name: Build and run the probe against the package
+        run: |
+          gcc --version | head -1
+          pacman -Q mingw-w64-ucrt-x86_64-opencascade
+          g++ -O2 -std=c++17 scripts/ci/occt-probe.cpp -I/ucrt64/include/opencascade $LIBS -o probe.exe
+          ./probe.exe && echo "PROBE OK" || echo "PROBE FAILED exit=$?"
+
+  source:
+    name: from source, GCC 16, ${{ matrix.opt }}
+    runs-on: windows-latest
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        opt: [ -O2, -O1 ]
+    defaults: { run: { shell: 'msys2 {0}' } }
+    steps:
+      - uses: actions/checkout@v7
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          update: true
+          pacboy: gcc:p cmake:p ninja:p
+      - name: Fetch OCCT 7.9.3
+        run: |
+          curl -sL -o occt.tar.gz https://github.com/Open-Cascade-SAS/OCCT/archive/refs/tags/V7_9_3.tar.gz
+          tar xzf occt.tar.gz && mv OCCT-7_9_3 occt
+      - name: Build the modelling toolkits only
+        run: |
+          gcc --version | head -1
+          cmake -S occt -B occt-build -G Ninja -DCMAKE_BUILD_TYPE=Release \
+            "-DCMAKE_CXX_FLAGS_RELEASE=${{ matrix.opt }} -DNDEBUG" \
+            -DBUILD_LIBRARY_TYPE=Shared -DBUILD_MODULE_Draw=OFF -DBUILD_MODULE_Visualization=OFF \
+            -DBUILD_MODULE_ApplicationFramework=OFF -DBUILD_MODULE_DataExchange=OFF \
+            -DBUILD_DOC_Overview=OFF -DUSE_TK=OFF -DUSE_TBB=OFF -DUSE_FREETYPE=OFF -DUSE_OPENGL=OFF \
+            -DUSE_XLIB=OFF -DUSE_RAPIDJSON=OFF -DUSE_FFMPEG=OFF -DINSTALL_DIR_LAYOUT=Unix \
+            -DCMAKE_INSTALL_PREFIX="$PWD/occt-install"
+          cmake --build occt-build -j 4 2>&1 | grep -E "error|warning: .*overflow" | head -20 || true
+          cmake --install occt-build > /dev/null
+          ls occt-install/lib | head -20
+      - name: Build and run the probe against it
+        run: |
+          g++ -O2 -std=c++17 scripts/ci/occt-probe.cpp -I occt-install/include/opencascade -L occt-install/lib $LIBS -o probe.exe
+          export PATH="$PWD/occt-install/bin:$PATH"
+          ./probe.exe && echo "PROBE OK" || echo "PROBE FAILED exit=$?"
