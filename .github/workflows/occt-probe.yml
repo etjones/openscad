@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
 
 env:
-  LIBS: -lTKBO -lTKPrim -lTKTopAlgo -lTKGeomAlgo -lTKBRep -lTKGeomBase -lTKG3d -lTKG2d -lTKMath -lTKernel
+  LIBS: -lTKBO -lTKBool -lTKShHealing -lTKPrim -lTKTopAlgo -lTKGeomAlgo -lTKBRep -lTKGeomBase -lTKG3d -lTKG2d -lTKMath -lTKernel
 
 jobs:
   package:
@@ -28,7 +28,7 @@ jobs:
         run: |
           gcc --version | head -1
           pacman -Q mingw-w64-ucrt-x86_64-opencascade
-          g++ -O2 -std=gnu++17 -D_USE_MATH_DEFINES scripts/ci/occt-probe.cpp -I/ucrt64/include/opencascade $LIBS -o probe.exe
+          g++ -O2 -std=gnu++17 -D_USE_MATH_DEFINES -frounding-math -Wl,--stack,8388608 scripts/ci/occt-probe.cpp -I/ucrt64/include/opencascade $LIBS -o probe.exe
           ./probe.exe && echo "PROBE OK" || echo "PROBE FAILED exit=$?"
 
   source:
@@ -66,6 +66,6 @@ jobs:
           ls occt-install/lib | head -20
       - name: Build and run the probe against it
         run: |
-          g++ -O2 -std=gnu++17 -D_USE_MATH_DEFINES scripts/ci/occt-probe.cpp -I occt-install/include/opencascade -L occt-install/lib $LIBS -o probe.exe
+          g++ -O2 -std=gnu++17 -D_USE_MATH_DEFINES -frounding-math -Wl,--stack,8388608 scripts/ci/occt-probe.cpp -I occt-install/include/opencascade -L occt-install/lib $LIBS -o probe.exe
           export PATH="$PWD/occt-install/bin:$PATH"
           ./probe.exe && echo "PROBE OK" || echo "PROBE FAILED exit=$?"
