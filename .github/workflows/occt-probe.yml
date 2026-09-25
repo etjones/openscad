@@ -15,6 +15,7 @@ env:
 jobs:
   package:
     name: msys2 package (GCC 16)
+    if: false
     runs-on: windows-latest
     defaults: { run: { shell: 'msys2 {0}' } }
     steps:
@@ -42,8 +43,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { opt: -O2, tbb: OFF }
-          - { opt: -O1, tbb: OFF }
           - { opt: -O2, tbb: ON }
     defaults: { run: { shell: 'msys2 {0}' } }
     steps:
@@ -64,7 +63,7 @@ jobs:
             "-DCMAKE_CXX_FLAGS_RELEASE=${{ matrix.opt }} -DNDEBUG" \
             -DBUILD_LIBRARY_TYPE=Shared -DBUILD_MODULE_Draw=OFF -DBUILD_MODULE_Visualization=OFF \
             -DBUILD_MODULE_ApplicationFramework=OFF -DBUILD_MODULE_DataExchange=OFF \
-            -DBUILD_DOC_Overview=OFF -DUSE_TK=OFF -DUSE_TBB=${{ matrix.tbb }} -DUSE_FREETYPE=OFF -DUSE_OPENGL=OFF \
+            -DBUILD_DOC_Overview=OFF -DUSE_TK=OFF -DUSE_TBB=${{ matrix.tbb }} -D3RDPARTY_TBB_DIR=/ucrt64 -D3RDPARTY_TBB_INCLUDE_DIR=/ucrt64/include -D3RDPARTY_TBB_LIBRARY_DIR=/ucrt64/lib -D3RDPARTY_TBB_LIBRARY=/ucrt64/lib/libtbb12.dll.a -D3RDPARTY_TBBMALLOC_LIBRARY_DIR=/ucrt64/lib -D3RDPARTY_TBBMALLOC_LIBRARY=/ucrt64/lib/libtbbmalloc.dll.a -D3RDPARTY_TBB_DLL_DIR=/ucrt64/bin -D3RDPARTY_TBBMALLOC_DLL_DIR=/ucrt64/bin -DUSE_FREETYPE=OFF -DUSE_OPENGL=OFF \
             -DUSE_XLIB=OFF -DUSE_RAPIDJSON=OFF -DUSE_FFMPEG=OFF -DINSTALL_DIR_LAYOUT=Unix \
             -DCMAKE_INSTALL_PREFIX="$PWD/occt-install"
           cmake --build occt-build -j 4 2>&1 | grep -E "error|warning: .*overflow" | head -20 || true
