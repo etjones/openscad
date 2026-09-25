@@ -245,7 +245,8 @@ OpenSCAD renders from the same source.
   flattens its base fails and the region degrades. The geometry has an
   exact form; OpenCASCADE will not produce it.
 - The exporter runs on the GUI thread with no progress or cancel.
-- Layers are written but few consumers read them.
+- The assembly tree is spent on colour: bodies are grouped by colour and
+  nothing else. Layers are not written.
 
 ## Questions for maintainers
 
