@@ -48,7 +48,7 @@ jobs:
           msystem: ${{ matrix.msystem }}
           update: true
           install: libxml2
-          pacboy: ${{ env.PACBOY_PACKAGES }}
+          pacboy: ${{ env.PACBOY_PACKAGES }} gdb:p
       - name: Install Mesa
         uses: ssciwr/setup-mesa-dist-win@v3
         with:
@@ -98,6 +98,13 @@ jobs:
           export PATH="$PWD/occt-install/bin:$PATH"
           cd build
           ctest -j4
+      - name: Backtrace of the first crashing OpenCASCADE unit test
+        if: failure()
+        run: |
+          export PATH="$PWD/occt-install/bin:$PATH"
+          exe=$(find build -name 'OpenSCADUnitTests*.exe' | head -1)
+          echo "unit test binary: $exe"
+          gdb -batch -ex run -ex bt -ex "info registers rip rsp" -ex "x/8i \$pc" --args "$exe" "[occt]" 2>&1 | tail -80
       - name: Setup (detached) tmate session if enabled
         uses: mxschmitt/action-tmate@v3
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.debug_enabled }}
