@@ -26,7 +26,11 @@ jobs:
           path: |
             mxe/usr
             mxe/pkg
-          key: mxe-occt-${{ hashFiles('.github/workflows/mxe-occt.yml') }}-v1
+          # Keyed on the recipe (etjones/mxe branch opencascade, OCCT 7.9.3),
+          # not on this file, so editing the workflow does not rebuild MXE.
+          key: mxe-occt-7.9.3-gcc11-v2
+          restore-keys: |
+            mxe-occt-
           restore-keys: mxe-occt-
       - name: Build opencascade and its dependencies (static, posix threads, x86_64)
         run: |
