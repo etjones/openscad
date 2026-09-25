@@ -46,7 +46,7 @@ PACKAGE_LIST=(
     "eigen3:p"
     "glew:p"
     "opencsg:p"
-    "lib3mf:p"
+    "lib3mf:p opencascade:p"
     "libzip:p"
     "mimalloc:p"
     "double-conversion:p"

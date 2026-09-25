@@ -18,9 +18,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        qt: [ qt5, qt6 ]
+        qt: [ qt6 ]
+        msystem: [ UCRT64, CLANG64 ]
     runs-on: windows-latest
-    name: windows-latest ${{ matrix.qt }}
+    name: windows-latest ${{ matrix.qt }} ${{ matrix.msystem }} occt
     defaults:
       run:
         shell: msys2 {0}
@@ -43,7 +44,7 @@ jobs:
         uses: msys2/setup-msys2@v2
         id: msys2
         with:
-          msystem: UCRT64
+          msystem: ${{ matrix.msystem }}
           update: true
           install: libxml2
           pacboy: ${{ env.PACBOY_PACKAGES }}
@@ -52,14 +53,12 @@ jobs:
         with:
           version: '22.1.7'
           build-type: 'release-mingw'
-      # The STEP evaluator (ENABLE_OCCT) is not built here: the msys2
-      # opencascade 7.9.3-3 package, compiled with GCC 16, segfaults inside
-      # Extrema_ExtCC::Perform on any boolean involving a curved surface
-      # (backtrace in etjones/openscad#1). Re-enable once the package works.
+      # EXPERIMENT: the STEP evaluator on, under both msys2 toolchains, to
+      # learn whether the Extrema_ExtCC segfault is GCC 16's doing.
       - name: Build OpenSCAD
         run: |
           mkdir build && cd build
-          cmake .. -G"Ninja" -DCMAKE_INSTALL_PREFIX=/usr -DCMAKE_BUILD_TYPE=Release -DEXPERIMENTAL=ON -DSNAPSHOT=ON -DUSE_QT6=${{ matrix.qt == 'qt6' && 'ON' || 'OFF' }}
+          cmake .. -G"Ninja" -DCMAKE_INSTALL_PREFIX=/usr -DCMAKE_BUILD_TYPE=Release -DEXPERIMENTAL=ON -DSNAPSHOT=ON -DENABLE_OCCT=ON -DUSE_QT6=${{ matrix.qt == 'qt6' && 'ON' || 'OFF' }}
           cmake --build . -j4
           cmake --install . --prefix=.
       - name: Run Test Suite
@@ -73,7 +72,7 @@ jobs:
         uses: actions/upload-artifact@v7
         if: ${{ always() }}
         with:
-          name: Test Result Report (Windows ${{ matrix.qt }})
+          name: Test Result Report (Windows ${{ matrix.qt }} ${{ matrix.msystem }})
           path: |
             build/Testing/Temporary/*_report.html
             build/Testing/Temporary/LastTest.log
