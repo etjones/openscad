@@ -13,6 +13,43 @@ env:
   LIBS: -lTKBO -lTKBool -lTKShHealing -lTKPrim -lTKTopAlgo -lTKGeomAlgo -lTKBRep -lTKGeomBase -lTKG3d -lTKG2d -lTKMath -lTKernel
 
 jobs:
+  conditions:
+    name: OpenSCAD's process conditions, against the source build
+    runs-on: windows-latest
+    defaults: { run: { shell: 'msys2 {0}' } }
+    steps:
+      - uses: actions/checkout@v7
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          update: true
+          pacboy: gcc:p gmp:p mpfr:p tbb:p qt6-base:p boost:p
+      - name: Restore the OpenCASCADE built from source by the Windows job
+        id: occt
+        uses: actions/cache/restore@v4
+        with:
+          path: occt-install
+          key: occt-7.9.3-UCRT64-src-v1
+          fail-on-cache-miss: true
+      - name: Build the probe two ways and run it under each condition
+        run: |
+          export PATH="$PWD/occt-install/bin:$PATH"
+          for opt in -O2 -O3; do
+            g++ $opt -std=gnu++17 -D_USE_MATH_DEFINES -frounding-math -Wl,--stack,8388608 scripts/ci/occt-probe.cpp -I occt-install/include/opencascade -L occt-install/lib $LIBS -o probe$opt.exe
+          done
+          run() { echo "=== $1"; shift; env "$@" ./probe-O2.exe > out.txt 2>&1 && echo "PROBE OK" || echo "PROBE FAILED exit=$?"; grep -E "fesetround|_controlfp|LoadLibrary|classifying" out.txt | tail -3; }
+          run "control" PROBE_NONE=1
+          echo "=== -O3 build"; ./probe-O3.exe > out.txt 2>&1 && echo "PROBE OK" || echo "PROBE FAILED exit=$?"
+          run "round up (SSE)" PROBE_ROUND=up
+          run "round down (SSE)" PROBE_ROUND=down
+          run "round toward zero (SSE)" PROBE_ROUND=zero
+          run "x87 control word up" PROBE_X87=1
+          run "load gmp+mpfr" PROBE_LOAD="libgmp-10.dll;libmpfr-6.dll"
+          run "load tbb" PROBE_LOAD="libtbb12.dll;libtbbmalloc.dll"
+          run "load Qt6Core+Gui" PROBE_LOAD="Qt6Core.dll;Qt6Gui.dll"
+          run "load boost" PROBE_LOAD="libboost_filesystem-mt.dll;libboost_program_options-mt.dll"
+          run "load everything" PROBE_LOAD="libgmp-10.dll;libmpfr-6.dll;libtbb12.dll;libtbbmalloc.dll;Qt6Core.dll;Qt6Gui.dll"
+
   package:
     name: msys2 package (GCC 16)
     if: false
