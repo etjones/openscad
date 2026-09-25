@@ -59,9 +59,9 @@ jobs:
       # point classified against a boolean result, while the same sources
       # built with the same GCC do not (scripts/ci/occt-probe.cpp shows
       # both). The build is cached on the version and options below.
-      - name: Cache OpenCASCADE
+      - name: Restore OpenCASCADE
         id: occt-cache
-        uses: actions/cache@v4
+        uses: actions/cache/restore@v4
         with:
           path: occt-install
           key: occt-7.9.3-${{ matrix.msystem }}-src-v1
@@ -77,6 +77,15 @@ jobs:
           cmake --build occt-build -j 4 2>&1 | grep -E "error" | head -20 || true
           cmake --install occt-build > /dev/null
           rm -rf occt occt-build occt.tar.gz
+      # Saved here, not in a post step: actions/cache only saves when the job
+      # succeeds, and a failing test suite must not cost the next run an
+      # hour-long OpenCASCADE rebuild.
+      - name: Save OpenCASCADE
+        if: steps.occt-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: occt-install
+          key: occt-7.9.3-${{ matrix.msystem }}-src-v1
       - name: Build OpenSCAD
         run: |
           export PATH="$PWD/occt-install/bin:$PATH"
