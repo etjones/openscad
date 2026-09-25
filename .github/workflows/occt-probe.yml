@@ -43,8 +43,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { label: "msys2 flags, full",      flags: "-march=nocona -msahf -mtune=generic -O2 -pipe -Wp,-D_FORTIFY_SOURCE=2 -fstack-protector-strong -Wp,-D__USE_MINGW_ANSI_STDIO=1", patches: "no" }
-          - { label: "msys2 flags, arch only", flags: "-march=nocona -msahf -mtune=generic -O2 -pipe", patches: "no" }
           - { label: "msys2 patches only",     flags: "-O2", patches: "yes" }
     defaults: { run: { shell: 'msys2 {0}' } }
     steps:
@@ -53,6 +51,7 @@ jobs:
         with:
           msystem: UCRT64
           update: true
+          install: patch
           pacboy: gcc:p cmake:p ninja:p
       - name: Fetch OCCT 7.9.3
         run: |
