@@ -15,6 +15,7 @@ env:
 jobs:
   conditions:
     name: OpenSCAD's process conditions, against the source build
+    if: false
     runs-on: windows-latest
     defaults: { run: { shell: 'msys2 {0}' } }
     steps:
@@ -80,7 +81,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { label: "msys2 patches only",     flags: "-O2", patches: "yes" }
+          - { label: "all modules, FreeType on (the Windows job's build)", flags: "-O2", patches: "no", modules: "-DUSE_FREETYPE=ON -DUSE_D3D=OFF" }
+          - { label: "all modules, FreeType off",                         flags: "-O2", patches: "no", modules: "-DUSE_FREETYPE=OFF -DUSE_D3D=OFF" }
+          - { label: "no Visualization, FreeType off",                    flags: "-O2", patches: "no", modules: "-DBUILD_MODULE_Visualization=OFF -DUSE_FREETYPE=OFF" }
+          - { label: "modelling only, FreeType on",                       flags: "-O2", patches: "no", modules: "-DBUILD_MODULE_Visualization=OFF -DBUILD_MODULE_ApplicationFramework=OFF -DBUILD_MODULE_DataExchange=OFF -DUSE_FREETYPE=ON" }
     defaults: { run: { shell: 'msys2 {0}' } }
     steps:
       - uses: actions/checkout@v7
@@ -89,7 +93,7 @@ jobs:
           msystem: UCRT64
           update: true
           install: patch
-          pacboy: gcc:p cmake:p ninja:p
+          pacboy: gcc:p cmake:p ninja:p freetype:p
       - name: Fetch OCCT 7.9.3
         run: |
           curl -sL -o occt.tar.gz https://github.com/Open-Cascade-SAS/OCCT/archive/refs/tags/V7_9_3.tar.gz
@@ -102,14 +106,13 @@ jobs:
             curl -sL -o "$p" "https://raw.githubusercontent.com/msys2/MINGW-packages/master/mingw-w64-opencascade/$p"
             echo "--- $p"; patch -p1 -N < "$p" | tail -2
           done
-      - name: Build the modelling toolkits only
+      - name: Build OpenCASCADE (${{ matrix.label }})
         run: |
           gcc --version | head -1
           cmake -S occt -B occt-build -G Ninja -DCMAKE_BUILD_TYPE=Release \
             "-DCMAKE_CXX_FLAGS_RELEASE=${{ matrix.flags }} -DNDEBUG" "-DCMAKE_C_FLAGS_RELEASE=${{ matrix.flags }} -DNDEBUG" \
-            -DBUILD_LIBRARY_TYPE=Shared -DBUILD_MODULE_Draw=OFF -DBUILD_MODULE_Visualization=OFF \
-            -DBUILD_MODULE_ApplicationFramework=OFF -DBUILD_MODULE_DataExchange=OFF \
-            -DBUILD_DOC_Overview=OFF -DUSE_TK=OFF -DUSE_TBB=OFF -DUSE_FREETYPE=OFF -DUSE_OPENGL=OFF \
+            -DBUILD_LIBRARY_TYPE=Shared -DBUILD_MODULE_Draw=OFF ${{ matrix.modules }} \
+            -DBUILD_DOC_Overview=OFF -DUSE_TK=OFF -DUSE_TBB=OFF -DUSE_OPENGL=OFF \
             -DUSE_XLIB=OFF -DUSE_RAPIDJSON=OFF -DUSE_FFMPEG=OFF -DINSTALL_DIR_LAYOUT=Unix \
             -DCMAKE_INSTALL_PREFIX="$PWD/occt-install"
           cmake --build occt-build -j 4 2>&1 | grep -E "error|warning: .*overflow" | head -20 || true
