@@ -36,14 +36,16 @@ jobs:
           echo "--- MMGT_OPT=2 (TBB allocator)"; MMGT_OPT=2 ./probe.exe && echo "PROBE OK" || echo "PROBE FAILED exit=$?"
 
   source:
-    name: from source, GCC 16, ${{ matrix.opt }}, TBB ${{ matrix.tbb }}
+    name: from source, GCC 16, ${{ matrix.label }}
     runs-on: windows-latest
     timeout-minutes: 180
     strategy:
       fail-fast: false
       matrix:
         include:
-          - { opt: -O2, tbb: ON }
+          - { label: "msys2 flags, full",      flags: "-march=nocona -msahf -mtune=generic -O2 -pipe -Wp,-D_FORTIFY_SOURCE=2 -fstack-protector-strong -Wp,-D__USE_MINGW_ANSI_STDIO=1", patches: "no" }
+          - { label: "msys2 flags, arch only", flags: "-march=nocona -msahf -mtune=generic -O2 -pipe", patches: "no" }
+          - { label: "msys2 patches only",     flags: "-O2", patches: "yes" }
     defaults: { run: { shell: 'msys2 {0}' } }
     steps:
       - uses: actions/checkout@v7
@@ -51,19 +53,27 @@ jobs:
         with:
           msystem: UCRT64
           update: true
-          pacboy: gcc:p cmake:p ninja:p tbb:p
+          pacboy: gcc:p cmake:p ninja:p
       - name: Fetch OCCT 7.9.3
         run: |
           curl -sL -o occt.tar.gz https://github.com/Open-Cascade-SAS/OCCT/archive/refs/tags/V7_9_3.tar.gz
           tar xzf occt.tar.gz && mv OCCT-7_9_3 occt
+      - name: Apply the msys2 package's patches
+        if: matrix.patches == 'yes'
+        run: |
+          cd occt
+          for p in 0001-do-not-redefine-WIN32_WINNT.patch 0002-fix-build-with-ffmpeg.patch 0003-BRepFill_Filling-WireFromList-We-can-t-assume-that-a.patch 0004-BRepFill_Filling-Curve-constraints-confused-by-impli.patch 0006-BRepOffset_Tool-TryProject-Check-return-of-BRepLib-B.patch 0007-static-build.patch 0009-SSE2-detection-gcc.patch 0010-Fix-TBB-detection.patch 0013-ExpToCasExe-Fix-building-static.patch 0014-aarch64-mm_alloc.patch; do
+            curl -sL -o "$p" "https://raw.githubusercontent.com/msys2/MINGW-packages/master/mingw-w64-opencascade/$p"
+            echo "--- $p"; patch -p1 -N < "$p" | tail -2
+          done
       - name: Build the modelling toolkits only
         run: |
           gcc --version | head -1
           cmake -S occt -B occt-build -G Ninja -DCMAKE_BUILD_TYPE=Release \
-            "-DCMAKE_CXX_FLAGS_RELEASE=${{ matrix.opt }} -DNDEBUG" \
+            "-DCMAKE_CXX_FLAGS_RELEASE=${{ matrix.flags }} -DNDEBUG" "-DCMAKE_C_FLAGS_RELEASE=${{ matrix.flags }} -DNDEBUG" \
             -DBUILD_LIBRARY_TYPE=Shared -DBUILD_MODULE_Draw=OFF -DBUILD_MODULE_Visualization=OFF \
             -DBUILD_MODULE_ApplicationFramework=OFF -DBUILD_MODULE_DataExchange=OFF \
-            -DBUILD_DOC_Overview=OFF -DUSE_TK=OFF -DUSE_TBB=${{ matrix.tbb }} -D3RDPARTY_TBB_DIR=/ucrt64 -D3RDPARTY_TBB_INCLUDE_DIR=/ucrt64/include -D3RDPARTY_TBB_LIBRARY_DIR=/ucrt64/lib -D3RDPARTY_TBB_LIBRARY=/ucrt64/lib/libtbb12.dll.a -D3RDPARTY_TBBMALLOC_LIBRARY_DIR=/ucrt64/lib -D3RDPARTY_TBBMALLOC_LIBRARY=/ucrt64/lib/libtbbmalloc.dll.a -D3RDPARTY_TBB_DLL_DIR=/ucrt64/bin -D3RDPARTY_TBBMALLOC_DLL_DIR=/ucrt64/bin -DUSE_FREETYPE=OFF -DUSE_OPENGL=OFF \
+            -DBUILD_DOC_Overview=OFF -DUSE_TK=OFF -DUSE_TBB=OFF -DUSE_FREETYPE=OFF -DUSE_OPENGL=OFF \
             -DUSE_XLIB=OFF -DUSE_RAPIDJSON=OFF -DUSE_FFMPEG=OFF -DINSTALL_DIR_LAYOUT=Unix \
             -DCMAKE_INSTALL_PREFIX="$PWD/occt-install"
           cmake --build occt-build -j 4 2>&1 | grep -E "error|warning: .*overflow" | head -20 || true
