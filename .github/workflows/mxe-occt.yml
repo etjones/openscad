@@ -1,0 +1,33 @@
+name: MXE OpenCASCADE (experiment)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  mxe-opencascade:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    steps:
+      - name: Install MXE requirements
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q autoconf automake autopoint bash bison bzip2 flex g++ g++-multilib gettext git gperf intltool libc6-dev-i386 libclang-dev libgdk-pixbuf2.0-dev libltdl-dev libgl-dev libpcre2-dev libssl-dev libtool-bin libxml-parser-perl lzip make openssl p7zip-full patch perl python3 python3-mako python3-packaging python3-pkg-resources python3-setuptools python-is-python3 ruby sed sqlite3 unzip wget xz-utils
+      - name: Clone OpenSCAD's MXE with the opencascade recipe
+        run: git clone --depth 1 -b opencascade https://github.com/etjones/mxe.git mxe
+      - name: Build opencascade and its dependencies (static, posix threads, x86_64)
+        run: |
+          cd mxe
+          make MXE_TARGETS=x86_64-w64-mingw32.static.posix opencascade JOBS=4 -j 2 2>&1 | tee build.log | grep -E "^\[|error|Error|installed|=== " | tail -200
+      - name: What got built
+        if: always()
+        run: |
+          ls mxe/usr/x86_64-w64-mingw32.static.posix/lib 2>/dev/null | grep -i "tk" | tr '\n' ' '; echo
+          ls mxe/log 2>/dev/null | tail -5
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: mxe-opencascade-logs
+          path: |
+            mxe/log/opencascade*
+            mxe/build.log
