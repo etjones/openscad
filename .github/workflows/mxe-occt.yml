@@ -43,7 +43,7 @@ jobs:
           export PATH="$PWD/mxe/usr/bin:$PATH"
           $T-g++ -O2 -std=gnu++17 -D_USE_MATH_DEFINES -frounding-math -Wl,--stack,8388608 scripts/ci/occt-probe.cpp \
             -I mxe/usr/$T/include/opencascade -L mxe/usr/$T/lib \
-            -lTKBO -lTKBool -lTKPrim -lTKTopAlgo -lTKGeomAlgo -lTKShHealing -lTKBRep -lTKGeomBase -lTKG3d -lTKG2d -lTKMath -lTKernel \
+            -Wl,--start-group -lTKBO -lTKBool -lTKPrim -lTKTopAlgo -lTKGeomAlgo -lTKShHealing -lTKBRep -lTKGeomBase -lTKG3d -lTKG2d -lTKMath -lTKernel -Wl,--end-group \
             -lws2_32 -lpsapi -ladvapi32 -static -o probe-mxe.exe
           ls -l probe-mxe.exe
       - name: Upload the probe executable
