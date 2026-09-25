@@ -13,12 +13,21 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 360
     steps:
+      - uses: actions/checkout@v7
       - name: Install MXE requirements
         run: |
           sudo apt-get update -q
           sudo apt-get install -y -q autoconf automake autopoint bash bison bzip2 flex g++ g++-multilib gettext git gperf intltool libc6-dev-i386 libclang-dev libgdk-pixbuf2.0-dev libltdl-dev libgl-dev libpcre2-dev libssl-dev libtool-bin libxml-parser-perl lzip make openssl p7zip-full patch perl python3 python3-mako python3-packaging python3-pkg-resources python3-setuptools python-is-python3 ruby sed sqlite3 unzip wget xz-utils
       - name: Clone OpenSCAD's MXE with the opencascade recipe
         run: git clone --depth 1 -b opencascade https://github.com/etjones/mxe.git mxe
+      - name: Cache the MXE tree
+        uses: actions/cache@v4
+        with:
+          path: |
+            mxe/usr
+            mxe/pkg
+          key: mxe-occt-${{ hashFiles('.github/workflows/mxe-occt.yml') }}-v1
+          restore-keys: mxe-occt-
       - name: Build opencascade and its dependencies (static, posix threads, x86_64)
         run: |
           cd mxe
@@ -28,6 +37,20 @@ jobs:
         run: |
           ls mxe/usr/x86_64-w64-mingw32.static.posix/lib 2>/dev/null | grep -i "tk" | tr '\n' ' '; echo
           ls mxe/log 2>/dev/null | tail -5
+      - name: Cross-compile the probe against the static libraries
+        run: |
+          T=x86_64-w64-mingw32.static.posix
+          export PATH="$PWD/mxe/usr/bin:$PATH"
+          $T-g++ -O2 -std=gnu++17 -D_USE_MATH_DEFINES scripts/ci/occt-probe.cpp \
+            -I mxe/usr/$T/include/opencascade -L mxe/usr/$T/lib \
+            -lTKBO -lTKBool -lTKPrim -lTKTopAlgo -lTKGeomAlgo -lTKShHealing -lTKBRep -lTKGeomBase -lTKG3d -lTKG2d -lTKMath -lTKernel \
+            -lws2_32 -lpsapi -ladvapi32 -static -o probe-mxe.exe
+          ls -l probe-mxe.exe
+      - name: Upload the probe executable
+        uses: actions/upload-artifact@v7
+        with:
+          name: probe-mxe
+          path: probe-mxe.exe
       - name: Upload logs
         if: always()
         uses: actions/upload-artifact@v7
@@ -36,3 +59,17 @@ jobs:
           path: |
             mxe/log/opencascade*
             mxe/build.log
+
+  run-probe-on-windows:
+    name: run the MXE-built probe on Windows
+    needs: mxe-opencascade
+    runs-on: windows-latest
+    steps:
+      - uses: actions/download-artifact@v7
+        with:
+          name: probe-mxe
+      - name: Run it
+        shell: pwsh
+        run: |
+          .\probe-mxe.exe
+          if ($LASTEXITCODE -eq 0) { "PROBE OK" } else { "PROBE FAILED exit=$LASTEXITCODE" }
