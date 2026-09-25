@@ -81,10 +81,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { label: "all modules, FreeType on (the Windows job's build)", flags: "-O2", patches: "no", modules: "-DUSE_FREETYPE=ON -DUSE_D3D=OFF" }
-          - { label: "all modules, FreeType off",                         flags: "-O2", patches: "no", modules: "-DUSE_FREETYPE=OFF -DUSE_D3D=OFF" }
-          - { label: "no Visualization, FreeType off",                    flags: "-O2", patches: "no", modules: "-DBUILD_MODULE_Visualization=OFF -DUSE_FREETYPE=OFF" }
-          - { label: "modelling only, FreeType on",                       flags: "-O2", patches: "no", modules: "-DBUILD_MODULE_Visualization=OFF -DBUILD_MODULE_ApplicationFramework=OFF -DBUILD_MODULE_DataExchange=OFF -DUSE_FREETYPE=ON" }
+          - { label: "modelling only, -O3 (CMake's Release default)",   flags: "-O3", patches: "no", modules: "-DBUILD_MODULE_Visualization=OFF -DBUILD_MODULE_ApplicationFramework=OFF -DBUILD_MODULE_DataExchange=OFF -DUSE_FREETYPE=OFF" }
+          - { label: "all modules, FreeType on, -O2",                    flags: "-O2", patches: "no", modules: "-DUSE_FREETYPE=ON -DUSE_D3D=OFF" }
     defaults: { run: { shell: 'msys2 {0}' } }
     steps:
       - uses: actions/checkout@v7
