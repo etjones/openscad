@@ -4,6 +4,8 @@ on:
   push:
     branches:
       - 'ci/**'
+    paths:
+      - '.github/workflows/mxe-occt.yml'
   workflow_dispatch:
 
 jobs:
