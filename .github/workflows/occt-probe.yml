@@ -81,10 +81,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { label: "-O3 -fno-tree-vectorize",           flags: "-O3 -fno-tree-vectorize",           patches: "no", modules: "-DBUILD_MODULE_Visualization=OFF -DBUILD_MODULE_ApplicationFramework=OFF -DBUILD_MODULE_DataExchange=OFF -DUSE_FREETYPE=OFF" }
-          - { label: "-O3 -fno-ipa-cp-clone",             flags: "-O3 -fno-ipa-cp-clone",             patches: "no", modules: "-DBUILD_MODULE_Visualization=OFF -DBUILD_MODULE_ApplicationFramework=OFF -DBUILD_MODULE_DataExchange=OFF -DUSE_FREETYPE=OFF" }
-          - { label: "-O3 -fno-inline-functions",         flags: "-O3 -fno-inline-functions",         patches: "no", modules: "-DBUILD_MODULE_Visualization=OFF -DBUILD_MODULE_ApplicationFramework=OFF -DBUILD_MODULE_DataExchange=OFF -DUSE_FREETYPE=OFF" }
-          - { label: "-O2 -ftree-loop-vectorize -fpeel-loops -fipa-cp-clone", flags: "-O2 -ftree-loop-vectorize -fpeel-loops -fipa-cp-clone", patches: "no", modules: "-DBUILD_MODULE_Visualization=OFF -DBUILD_MODULE_ApplicationFramework=OFF -DBUILD_MODULE_DataExchange=OFF -DUSE_FREETYPE=OFF" }
+          - { label: "-O2 -fipa-cp-clone", flags: "-O2 -fipa-cp-clone", patches: "no", modules: "-DBUILD_MODULE_Visualization=OFF -DBUILD_MODULE_ApplicationFramework=OFF -DBUILD_MODULE_DataExchange=OFF -DUSE_FREETYPE=OFF" }
     defaults: { run: { shell: 'msys2 {0}' } }
     steps:
       - uses: actions/checkout@v7
@@ -122,4 +119,4 @@ jobs:
         run: |
           g++ -O2 -std=gnu++17 -D_USE_MATH_DEFINES -frounding-math -Wl,--stack,8388608 scripts/ci/occt-probe.cpp -I occt-install/include/opencascade -L occt-install/lib $LIBS -o probe.exe
           export PATH="$PWD/occt-install/bin:$PATH"
-          ./probe.exe && echo "PROBE OK" || echo "PROBE FAILED exit=$?"
+          ./probe.exe && echo "PROBE OK" || { echo "PROBE FAILED exit=$?"; exit 1; }
