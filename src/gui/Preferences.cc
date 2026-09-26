@@ -416,6 +416,10 @@ void Preferences::init()
   initIntSpinBox(this->spinBoxTabWidth, Settings::Settings::tabWidth);
 
   initComboBox(this->comboBoxOctoPrintFileFormat, Settings::Settings::octoPrintFileFormat);
+  initComboBox(this->comboBoxStepExportEngine, Settings::SettingsExportStep::exportStepEngine);
+  initIntSpinBox(this->spinBoxStepExportFacetThreshold,
+                 Settings::SettingsExportStep::exportStepFacetThreshold);
+  initIntSpinBox(this->spinBoxStepExportTimeBudget, Settings::SettingsExportStep::exportStepTimeBudget);
   initComboBox(this->comboBoxOctoPrintAction, Settings::Settings::octoPrintAction);
   initComboBox(this->comboBoxLocalAppFileFormat, Settings::Settings::localAppFileFormat);
   initComboBox(this->comboBoxRenderBackend3D, Settings::Settings::renderBackend3D);
@@ -442,6 +446,8 @@ void Preferences::init()
     ->setText(QString::fromStdString(Settings::Settings::localAppExecutable.value()));
   BlockSignals<QLineEdit *>(this->lineEditLocalAppTempDir)
     ->setText(QString::fromStdString(Settings::Settings::localAppTempDir.value()));
+  BlockSignals<QLineEdit *>(this->lineEditStepExportCommand)
+    ->setText(QString::fromStdString(Settings::SettingsExportStep::exportStepCommand.value()));
   this->comboBoxOctoPrintSlicingEngine->clear();
   this->comboBoxOctoPrintSlicingEngine->addItem(_("<Default>"), QVariant{""});
   if (!slicer.isEmpty()) {
@@ -1184,6 +1190,36 @@ void Preferences::on_comboBoxOctoPrintFileFormat_activated(int val)
 void Preferences::on_comboBoxLocalAppFileFormat_activated(int val)
 {
   applyComboBox(this->comboBoxLocalAppFileFormat, val, Settings::Settings::localAppFileFormat);
+  writeSettings();
+}
+
+void Preferences::on_comboBoxStepExportEngine_activated(int val)
+{
+  applyComboBox(comboBoxStepExportEngine, val, Settings::SettingsExportStep::exportStepEngine);
+}
+
+void Preferences::on_spinBoxStepExportFacetThreshold_valueChanged(int val)
+{
+  Settings::SettingsExportStep::exportStepFacetThreshold.setValue(val);
+  writeSettings();
+}
+
+void Preferences::on_spinBoxStepExportTimeBudget_valueChanged(int val)
+{
+  Settings::SettingsExportStep::exportStepTimeBudget.setValue(val);
+  writeSettings();
+}
+
+void Preferences::on_checkBoxStepExportGroupByColor_toggled(bool val)
+{
+  Settings::SettingsExportStep::exportStepGroupByColor.setValue(val);
+  writeSettings();
+}
+
+void Preferences::on_lineEditStepExportCommand_editingFinished()
+{
+  Settings::SettingsExportStep::exportStepCommand.setValue(
+    this->lineEditStepExportCommand->text().toStdString());
   writeSettings();
 }
 
@@ -2016,6 +2052,11 @@ void Preferences::updateGUI()
   updateComboBox(this->comboBoxModifierNumberScrollWheel, Settings::Settings::modifierNumberScrollWheel);
   updateIntSpinBox(this->spinBoxIndentationWidth, Settings::Settings::indentationWidth);
   updateIntSpinBox(this->spinBoxTabWidth, Settings::Settings::tabWidth);
+  updateIntSpinBox(this->spinBoxStepExportFacetThreshold,
+                   Settings::SettingsExportStep::exportStepFacetThreshold);
+  updateIntSpinBox(this->spinBoxStepExportTimeBudget,
+                   Settings::SettingsExportStep::exportStepTimeBudget);
+  updateComboBox(this->comboBoxStepExportEngine, Settings::SettingsExportStep::exportStepEngine);
   updateIntSpinBox(this->spinBoxLineWrapIndentationIndent, Settings::Settings::lineWrapIndentation);
   updateIntSpinBox(this->spinBoxShowWhitespaceSize, Settings::Settings::showWhitespaceSize);
   initUpdateCheckBox(this->checkBoxAutoIndent, Settings::Settings::autoIndent);
@@ -2024,6 +2065,8 @@ void Preferences::updateGUI()
   initUpdateCheckBox(this->checkBoxEnableBraceMatching, Settings::Settings::enableBraceMatching);
   initUpdateCheckBox(this->checkBoxEnableNumberScrollWheel, Settings::Settings::enableNumberScrollWheel);
   initUpdateCheckBox(this->checkBoxShowWarningsIn3dView, Settings::Settings::showWarningsIn3dView);
+  initUpdateCheckBox(this->checkBoxStepExportGroupByColor,
+                     Settings::SettingsExportStep::exportStepGroupByColor);
   initUpdateCheckBox(this->checkBoxMouseCentricZoom, Settings::Settings::mouseCentricZoom);
   initUpdateCheckBox(this->checkBoxEnableLineNumbers, Settings::Settings::enableLineNumbers);
 

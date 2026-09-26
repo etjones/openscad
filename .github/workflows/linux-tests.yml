@@ -40,7 +40,9 @@ jobs:
     - name: Install gcovr
       run: uv sync --project .github/ci/openscad-coverage
     - name: Build
-      run: ./scripts/github-ci.sh experimental enable_python ${{ matrix.qt }} build
+      # Ubuntu 22.04 ships OpenCASCADE 7.5 without a CMake package config, so the STEP
+      # evaluator is built on 24.04 only.
+      run: ./scripts/github-ci.sh experimental enable_python ${{ matrix.os != 'ubuntu-22.04' && 'enable_occt' || '' }} ${{ matrix.qt }} build
     - name: Test
       # This is a bit wonky to use github-ci as it is.
       # `test` runs ctest, `test_examples` sets a persistent flag for ctest to run a different "configuration".

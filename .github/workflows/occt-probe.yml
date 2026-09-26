@@ -1,0 +1,122 @@
+name: OpenCASCADE probe on Windows (experiment)
+
+on:
+  push:
+    branches:
+      - 'ci/**'
+    paths:
+      - '.github/workflows/occt-probe.yml'
+      - 'scripts/ci/occt-probe.cpp'
+  workflow_dispatch:
+
+env:
+  LIBS: -lTKBO -lTKBool -lTKShHealing -lTKPrim -lTKTopAlgo -lTKGeomAlgo -lTKBRep -lTKGeomBase -lTKG3d -lTKG2d -lTKMath -lTKernel
+
+jobs:
+  conditions:
+    name: OpenSCAD's process conditions, against the source build
+    if: false
+    runs-on: windows-latest
+    defaults: { run: { shell: 'msys2 {0}' } }
+    steps:
+      - uses: actions/checkout@v7
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          update: true
+          pacboy: gcc:p gmp:p mpfr:p tbb:p qt6-base:p boost:p
+      - name: Restore the OpenCASCADE built from source by the Windows job
+        id: occt
+        uses: actions/cache/restore@v4
+        with:
+          path: occt-install
+          key: occt-7.9.3-UCRT64-src-v1
+          fail-on-cache-miss: true
+      - name: Build the probe two ways and run it under each condition
+        run: |
+          export PATH="$PWD/occt-install/bin:$PATH"
+          for opt in -O2 -O3; do
+            g++ $opt -std=gnu++17 -D_USE_MATH_DEFINES -frounding-math -Wl,--stack,8388608 scripts/ci/occt-probe.cpp -I occt-install/include/opencascade -L occt-install/lib $LIBS -o probe$opt.exe
+          done
+          run() { echo "=== $1"; shift; env "$@" ./probe-O2.exe > out.txt 2>&1 && echo "PROBE OK" || echo "PROBE FAILED exit=$?"; grep -E "fesetround|_controlfp|LoadLibrary|classifying" out.txt | tail -3; }
+          run "control" PROBE_NONE=1
+          echo "=== -O3 build"; ./probe-O3.exe > out.txt 2>&1 && echo "PROBE OK" || echo "PROBE FAILED exit=$?"
+          run "round up (SSE)" PROBE_ROUND=up
+          run "round down (SSE)" PROBE_ROUND=down
+          run "round toward zero (SSE)" PROBE_ROUND=zero
+          run "x87 control word up" PROBE_X87=1
+          run "load gmp+mpfr" PROBE_LOAD="libgmp-10.dll;libmpfr-6.dll"
+          run "load tbb" PROBE_LOAD="libtbb12.dll;libtbbmalloc.dll"
+          run "load Qt6Core+Gui" PROBE_LOAD="Qt6Core.dll;Qt6Gui.dll"
+          run "load boost" PROBE_LOAD="libboost_filesystem-mt.dll;libboost_program_options-mt.dll"
+          run "load everything" PROBE_LOAD="libgmp-10.dll;libmpfr-6.dll;libtbb12.dll;libtbbmalloc.dll;Qt6Core.dll;Qt6Gui.dll"
+
+  package:
+    name: msys2 package (GCC 16)
+    if: false
+    runs-on: windows-latest
+    defaults: { run: { shell: 'msys2 {0}' } }
+    steps:
+      - uses: actions/checkout@v7
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          update: true
+          pacboy: gcc:p opencascade:p
+      - name: Build and run the probe against the package
+        run: |
+          gcc --version | head -1
+          pacman -Q mingw-w64-ucrt-x86_64-opencascade
+          g++ -O2 -std=gnu++17 -D_USE_MATH_DEFINES -frounding-math -Wl,--stack,8388608 scripts/ci/occt-probe.cpp -I/ucrt64/include/opencascade $LIBS -o probe.exe
+          echo "--- default allocator"; ./probe.exe && echo "PROBE OK" || echo "PROBE FAILED exit=$?"
+          echo "--- MMGT_OPT=0 (plain malloc)"; MMGT_OPT=0 ./probe.exe && echo "PROBE OK" || echo "PROBE FAILED exit=$?"
+          echo "--- MMGT_OPT=1 (OCCT optimized allocator)"; MMGT_OPT=1 ./probe.exe && echo "PROBE OK" || echo "PROBE FAILED exit=$?"
+          echo "--- MMGT_OPT=2 (TBB allocator)"; MMGT_OPT=2 ./probe.exe && echo "PROBE OK" || echo "PROBE FAILED exit=$?"
+
+  source:
+    name: from source, GCC 16, ${{ matrix.label }}
+    runs-on: windows-latest
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { label: "-O2 -fipa-cp-clone", flags: "-O2 -fipa-cp-clone", patches: "no", modules: "-DBUILD_MODULE_Visualization=OFF -DBUILD_MODULE_ApplicationFramework=OFF -DBUILD_MODULE_DataExchange=OFF -DUSE_FREETYPE=OFF" }
+    defaults: { run: { shell: 'msys2 {0}' } }
+    steps:
+      - uses: actions/checkout@v7
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          update: true
+          install: patch
+          pacboy: gcc:p cmake:p ninja:p freetype:p
+      - name: Fetch OCCT 7.9.3
+        run: |
+          curl -sL -o occt.tar.gz https://github.com/Open-Cascade-SAS/OCCT/archive/refs/tags/V7_9_3.tar.gz
+          tar xzf occt.tar.gz && mv OCCT-7_9_3 occt
+      - name: Apply the msys2 package's patches
+        if: matrix.patches == 'yes'
+        run: |
+          cd occt
+          for p in 0001-do-not-redefine-WIN32_WINNT.patch 0002-fix-build-with-ffmpeg.patch 0003-BRepFill_Filling-WireFromList-We-can-t-assume-that-a.patch 0004-BRepFill_Filling-Curve-constraints-confused-by-impli.patch 0006-BRepOffset_Tool-TryProject-Check-return-of-BRepLib-B.patch 0007-static-build.patch 0009-SSE2-detection-gcc.patch 0010-Fix-TBB-detection.patch 0013-ExpToCasExe-Fix-building-static.patch 0014-aarch64-mm_alloc.patch; do
+            curl -sL -o "$p" "https://raw.githubusercontent.com/msys2/MINGW-packages/master/mingw-w64-opencascade/$p"
+            echo "--- $p"; patch -p1 -N < "$p" | tail -2
+          done
+      - name: Build OpenCASCADE (${{ matrix.label }})
+        run: |
+          gcc --version | head -1
+          cmake -S occt -B occt-build -G Ninja -DCMAKE_BUILD_TYPE=Release \
+            "-DCMAKE_CXX_FLAGS_RELEASE=${{ matrix.flags }} -DNDEBUG" "-DCMAKE_C_FLAGS_RELEASE=${{ matrix.flags }} -DNDEBUG" \
+            -DBUILD_LIBRARY_TYPE=Shared -DBUILD_MODULE_Draw=OFF ${{ matrix.modules }} \
+            -DBUILD_DOC_Overview=OFF -DUSE_TK=OFF -DUSE_TBB=OFF -DUSE_OPENGL=OFF \
+            -DUSE_XLIB=OFF -DUSE_RAPIDJSON=OFF -DUSE_FFMPEG=OFF -DINSTALL_DIR_LAYOUT=Unix \
+            -DCMAKE_INSTALL_PREFIX="$PWD/occt-install"
+          cmake --build occt-build -j 4 2>&1 | grep -E "error|warning: .*overflow" | head -20 || true
+          cmake --install occt-build > /dev/null
+          ls occt-install/lib | head -20
+      - name: Build and run the probe against it
+        run: |
+          g++ -O2 -std=gnu++17 -D_USE_MATH_DEFINES -frounding-math -Wl,--stack,8388608 scripts/ci/occt-probe.cpp -I occt-install/include/opencascade -L occt-install/lib $LIBS -o probe.exe
+          export PATH="$PWD/occt-install/bin:$PATH"
+          ./probe.exe && echo "PROBE OK" || { echo "PROBE FAILED exit=$?"; exit 1; }

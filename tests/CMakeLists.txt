@@ -997,6 +997,21 @@ add_cmdline_test(export-pov-all          EXPERIMENTAL OPENSCAD SUFFIX pov FILES 
 
 # Export parameters, observe exported files and console output
 add_cmdline_test(export-param            OPENSCAD SUFFIX json FILES ${EXPORT_PARAM_TEST_FILES} ARGS --export-format param)
+if(ENABLE_OCCT)
+  # Built-in STEP export: measurements of the B-rep the evaluator builds,
+  # and of the written STEP file read back, as JSON. The face and solid
+  # counts pin the analytic surface structure, and OCCT before 7.8 leaves
+  # different (equally valid) topology after a fuse, so the exact
+  # comparison runs against 7.8 and newer only.
+  if(OpenCASCADE_VERSION VERSION_GREATER_EQUAL 7.8)
+    file(GLOB STEP_METRICS_TEST_FILES ${TEST_SCAD_DIR}/step/*.scad)
+    add_cmdline_test(step-metrics            OPENSCAD SUFFIX stepmetrics FILES ${STEP_METRICS_TEST_FILES} ARGS --export-format step-metrics)
+    # Colour rides on each body, so a file written without colour groups must read back the same colours.
+    add_cmdline_test(step-metrics-flat       OPENSCAD SUFFIX stepmetrics FILES ${TEST_SCAD_DIR}/step/dual_color.scad ${TEST_SCAD_DIR}/step/colors.scad ARGS --export-format step-metrics -O export-step/group-by-color=false)
+  else()
+    message(STATUS "OpenCASCADE ${OpenCASCADE_VERSION}: step-metrics tests need 7.8 or newer, skipping")
+  endif()
+endif()
 add_failing_test(export-param-hardwarnings        SUFFIX json FILES ${TEST_SCAD_DIR}/issues/issue7013.scad ARGS --retval=1 --export-format param --hardwarnings)
 add_failing_test(export-paramset-hardwarnings     SUFFIX json FILES ${TEST_SCAD_DIR}/issues/issue7013.scad ARGS --retval=1 --export-format param --hardwarnings -p ${TEST_SCAD_DIR}/issues/issue7013.json -P Defaults)
 
