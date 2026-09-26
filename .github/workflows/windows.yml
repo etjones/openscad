@@ -18,11 +18,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        qt: [ qt6 ]
-        msystem: [ UCRT64 ]
-        mimalloc: [ OFF ]
+        qt: [ qt5, qt6 ]
     runs-on: windows-latest
-    name: windows-latest ${{ matrix.qt }} ${{ matrix.msystem }} occt mimalloc=${{ matrix.mimalloc }}
+    name: windows-latest ${{ matrix.qt }}
     defaults:
       run:
         shell: msys2 {0}
@@ -45,7 +43,7 @@ jobs:
         uses: msys2/setup-msys2@v2
         id: msys2
         with:
-          msystem: ${{ matrix.msystem }}
+          msystem: UCRT64
           update: true
           install: libxml2
           pacboy: ${{ env.PACBOY_PACKAGES }} gdb:p
@@ -65,7 +63,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: occt-install
-          key: occt-7.9.3-${{ matrix.msystem }}-src-O2-v2
+          key: occt-7.9.3-UCRT64-src-O2-v2
       - name: Build OpenCASCADE from source
         if: steps.occt-cache.outputs.cache-hit != 'true'
         run: |
@@ -87,12 +85,12 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: occt-install
-          key: occt-7.9.3-${{ matrix.msystem }}-src-O2-v2
+          key: occt-7.9.3-UCRT64-src-O2-v2
       - name: Build OpenSCAD
         run: |
           export PATH="$PWD/occt-install/bin:$PATH"
           mkdir build && cd build
-          cmake .. -G"Ninja" -DCMAKE_INSTALL_PREFIX=/usr -DCMAKE_BUILD_TYPE=Release -DEXPERIMENTAL=ON -DSNAPSHOT=ON -DENABLE_OCCT=ON -DUSE_MIMALLOC=${{ matrix.mimalloc }} -DCMAKE_PREFIX_PATH="$PWD/../occt-install" -DUSE_QT6=${{ matrix.qt == 'qt6' && 'ON' || 'OFF' }}
+          cmake .. -G"Ninja" -DCMAKE_INSTALL_PREFIX=/usr -DCMAKE_BUILD_TYPE=Release -DEXPERIMENTAL=ON -DSNAPSHOT=ON -DENABLE_OCCT=ON -DCMAKE_PREFIX_PATH="$PWD/../occt-install" -DUSE_QT6=${{ matrix.qt == 'qt6' && 'ON' || 'OFF' }}
           cmake --build . -j4
           cmake --install . --prefix=.
       - name: Run Test Suite
@@ -114,7 +112,7 @@ jobs:
         uses: actions/upload-artifact@v7
         if: ${{ always() }}
         with:
-          name: Test Result Report (Windows ${{ matrix.qt }} ${{ matrix.msystem }})
+          name: Test Result Report (Windows ${{ matrix.qt }})
           path: |
             build/Testing/Temporary/*_report.html
             build/Testing/Temporary/LastTest.log
