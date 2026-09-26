@@ -224,10 +224,13 @@ as a module loaded on first use, at the cost of packaging work on three
 platforms and a Windows export problem. That has not been done, because
 it should be a maintainer's call.
 
-Platforms: enabled on macOS and on Linux where OpenCASCADE 7.6 or newer
-ships a CMake config. Disabled on Windows, where the msys2 package
-segfaults inside its own `Extrema_ExtCC` under GCC 16 before any of our
-code runs.
+Platforms: enabled on macOS, Linux and Windows where OpenCASCADE 7.6 or
+newer ships a CMake config. The msys2 OpenCASCADE package cannot be used:
+GCC 16.2 at -O3 (specifically `-fipa-cp-clone`) breaks the kernel's
+`Extrema_ExtCC`, and any point classified against a boolean result
+segfaults there before our code runs. The msys2 CI job builds the kernel
+from source at -O2 instead. The MXE release build carries its own static
+OpenCASCADE package, built with GCC 11, where the problem does not occur.
 
 ## Testing
 
