@@ -208,15 +208,18 @@ def compare_json(resultfilename):
     return True
 
 def compare_stepmetrics(resultfilename):
-    """STEP metrics: exact on every measurement, loose only on face counts.
+    """STEP metrics: exact on volumes and centroids, loose on the rest.
 
-    Volumes, bounding boxes and centroids are rounded by the exporter and
-    must match exactly. Face counts of a mesh-derived solid are not
-    dependable to the last unit: Manifold's convex hull triangulates flat
-    regions differently from one run to the next, and the count then
-    wanders by a few in several thousand while the volume does not. A face
-    count is held to 1%, which is still exact for the small counts an
-    analytic model has, where a lost face is the thing to catch.
+    Volumes and centroids are rounded by the exporter and must match
+    exactly; they are the same to every printed digit on macOS, Linux and
+    Windows. Face counts of a mesh-derived solid are not dependable to the
+    last unit: Manifold's convex hull triangulates flat regions differently
+    from one run to the next, and the count then wanders by a few in
+    several thousand while the volume does not. A bounding box of a boolean
+    result is a bound, not a measurement: OpenCASCADE's optimal box of a
+    fused ellipsoid comes out 0.2% short on one platform and exact on
+    another. Both are held to 1%, which is still exact for the small face
+    counts an analytic model has, where a lost face is the thing to catch.
     """
     print('step metrics comparison: ', file=sys.stderr)
     print(' expected file: ', expectedfilename, file=sys.stderr)
@@ -228,7 +231,8 @@ def compare_stepmetrics(resultfilename):
     def close(key, a, b):
         if isinstance(a, bool) or isinstance(b, bool) or not isinstance(a, (int, float)) or not isinstance(b, (int, float)):
             return a == b
-        slack = 0.01 * max(abs(a), abs(b)) if key == "faces" else 1e-9 * max(abs(a), abs(b), 1.0)
+        loose = key == "faces" or key.startswith("bbox")
+        slack = 0.01 * max(abs(a), abs(b)) if loose else 1e-9 * max(abs(a), abs(b), 1.0)
         return abs(a - b) <= slack
 
     def walk(path, a, b):
